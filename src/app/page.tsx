@@ -496,16 +496,16 @@ export default function Home() {
   // Active training view
   return (
     <main
-      className={`min-h-screen ${phase === "rest" ? "rest-period" : "bg-void"
-        } text-canvas flex flex-col items-center justify-center p-6 relative ${flashActive ? "callout-flash" : ""
+      className={`h-screen overflow-hidden ${phase === "rest" ? "rest-period" : "bg-void"
+        } text-canvas flex flex-col items-center justify-center p-4 relative ${flashActive ? "callout-flash" : ""
         }`}
     >
       {/* Round Indicators */}
-      <div className="absolute top-8 left-1/2 -translate-x-1/2 flex gap-1 flex-wrap justify-center max-w-full px-4">
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 flex gap-1 flex-wrap justify-center max-w-full px-4">
         {Array.from({ length: config.rounds }).map((_, i) => (
           <div
             key={i}
-            className={`w-3 h-3 rounded-full transition-all duration-300 ${i < currentRound - 1
+            className={`w-2 h-2 rounded-full transition-all duration-300 ${i < currentRound - 1
               ? "round-complete"
               : i === currentRound - 1
                 ? phase === "round"
@@ -518,16 +518,16 @@ export default function Home() {
       </div>
 
       {/* Round Counter */}
-      <div className="text-center mb-8">
-        <p className="text-rope-gray uppercase tracking-widest text-sm mb-2" style={{ fontFamily: 'var(--font-oswald)' }}>
+      <div className="text-center mb-4">
+        <p className="text-rope-gray uppercase tracking-widest text-xl md:text-2xl" style={{ fontFamily: 'var(--font-oswald)' }}>
           {phase === "rest" ? "REST PERIOD" : `ROUND ${currentRound} OF ${config.rounds}`}
         </p>
       </div>
 
       {/* Timer */}
-      <div className="text-center mb-12">
+      <div className="text-center mb-8">
         <div
-          className={`text-[12rem] md:text-[16rem] leading-none ${phase === "round" ? "timer-active text-canvas" : "text-ring-gold"
+          className={`text-[8rem] md:text-[10rem] leading-none ${phase === "round" ? "timer-active text-canvas" : "text-ring-gold"
             }`}
           style={{ fontFamily: 'var(--font-bebas)' }}
         >
@@ -537,12 +537,12 @@ export default function Home() {
 
       {/* Current Pattern */}
       {phase === "round" && (
-        <div className="text-center mb-12 ring-rope py-8 px-16">
-          <p className="text-rope-gray uppercase tracking-widest text-sm mb-4" style={{ fontFamily: 'var(--font-oswald)' }}>
+        <div className="text-center mb-8 ring-rope py-6 px-12">
+          <p className="text-rope-gray uppercase tracking-widest text-sm mb-2" style={{ fontFamily: 'var(--font-oswald)' }}>
             Current Pattern
           </p>
           <div
-            className={`text-[8rem] md:text-[10rem] leading-none text-blood transition-all duration-200 ${flashActive ? "scale-110" : "scale-100"
+            className={`text-[6rem] md:text-[8rem] leading-none text-blood transition-all duration-200 ${flashActive ? "scale-110" : "scale-100"
               }`}
             style={{ fontFamily: 'var(--font-bebas)' }}
           >
@@ -550,6 +550,22 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* Playback Speed Control */}
+      <div className="mb-6 w-full max-w-xs">
+        <label className="block text-xs uppercase tracking-widest text-rope-gray mb-1 text-center" style={{ fontFamily: 'var(--font-oswald)' }}>
+          Speed: <span className="text-blood">{config.playbackSpeed.toFixed(1)}x</span>
+        </label>
+        <input
+          type="range"
+          min="0.5"
+          max="2.0"
+          step="0.1"
+          value={config.playbackSpeed}
+          onChange={(e) => updateConfig("playbackSpeed", parseFloat(e.target.value))}
+          className="w-full"
+        />
+      </div>
 
       {/* Controls */}
       <div className="flex gap-4">
@@ -568,11 +584,6 @@ export default function Home() {
           STOP
         </button>
       </div>
-
-      {/* Status Text */}
-      <p className="absolute bottom-8 text-rope-gray text-sm uppercase tracking-widest" style={{ fontFamily: 'var(--font-oswald)' }}>
-        {isPaused ? "PAUSED" : phase === "rest" ? "RECOVER" : "TRAINING IN PROGRESS"}
-      </p>
     </main>
   );
 }
