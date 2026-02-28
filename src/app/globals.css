@@ -21,8 +21,8 @@
   --color-concrete: var(--concrete);
   --color-rope-gray: var(--rope-gray);
   --color-glove-red: var(--glove-red);
-  --font-bebas: var(--font-bebas);
-  --font-oswald: var(--font-oswald);
+  --font-family-bebas: var(--font-bebas);
+  --font-family-oswald: var(--font-oswald);
 }
 
 body {
