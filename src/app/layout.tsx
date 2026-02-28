@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Bebas_Neue, Oswald } from "next/font/google";
 import "./globals.css";
 import InstallPrompt from "@/components/InstallPrompt";
+import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 
 const bebasNeue = Bebas_Neue({
   weight: "400",
@@ -59,6 +60,7 @@ export default function RootLayout({
       >
         {children}
         <InstallPrompt />
+        <ServiceWorkerRegistration />
       </body>
     </html>
   );

@@ -22,6 +22,7 @@ interface TrainingConfig {
   delayVariance: number;
   playbackSpeed: number;
   voice: VoiceOption;
+  audioOverlap: number; // milliseconds to overlap audio files (negative delay)
 }
 
 // Voice options for callouts
@@ -89,6 +90,7 @@ export default function Home() {
     delayVariance: 2,
     playbackSpeed: 1.0,
     voice: "man_1",
+    audioOverlap: 0, // default: no overlap
   });
   const [configLoaded, setConfigLoaded] = useState(false);
 
@@ -116,6 +118,8 @@ export default function Home() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const calloutRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const activeAudioElementsRef = useRef<HTMLAudioElement[]>([]);
+  const simultaneousTimeoutsRef = useRef<NodeJS.Timeout[]>([]);
 
   // Initialize audio element and load from localStorage on client
   useEffect(() => {
@@ -184,52 +188,270 @@ export default function Home() {
 
   // Track play promise to handle interruptions
   const playPromiseRef = useRef<Promise<void> | null>(null);
+  const patternGenerationRef = useRef(0);
+
+  // Audio context for generating beeps
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  // Initialize audio context
+  useEffect(() => {
+    if (typeof window !== "undefined" && !audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    }
+  }, []);
+
+  // Play a single beep using Web Audio API
+  const playBeep = useCallback((frequency: number = 800, duration: number = 200, type: OscillatorType = 'sine', volume: number = 0.3): Promise<void> => {
+    return new Promise((resolve) => {
+      if (!audioContextRef.current) {
+        resolve();
+        return;
+      }
+
+      const ctx = audioContextRef.current;
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      oscillator.frequency.value = frequency;
+      oscillator.type = type;
+
+      // Envelope for smoother sound
+      gainNode.gain.setValueAtTime(0, ctx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(volume, ctx.currentTime + 0.05);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration / 1000);
+
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + duration / 1000);
+
+      setTimeout(() => {
+        resolve();
+      }, duration);
+    });
+  }, []);
+
+  // Play multiple beeps with same duration
+  const playBeeps = useCallback(async (count: number, frequency?: number, duration?: number, pauseBetween?: number) => {
+    const pause = pauseBetween ?? 300;
+    for (let i = 0; i < count; i++) {
+      await playBeep(frequency, duration);
+      if (i < count - 1) {
+        await new Promise(resolve => setTimeout(resolve, pause));
+      }
+    }
+  }, [playBeep]);
+
+  // Play round start sequence: 2 short beeps (300ms) + 1 long beep (600ms), 500ms between
+  const playRoundStartBeeps = useCallback(async () => {
+    await playBeep(1000, 300); // Short beep 1
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await playBeep(1000, 300); // Short beep 2
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await playBeep(800, 600);  // Long beep
+  }, [playBeep]);
+
+  // Play round end sequence: 3 short beeps (300ms, 1200Hz) + 1 long beep (1000ms, 600Hz), louder
+  const playRoundEndBeeps = useCallback(async () => {
+    const loudVolume = 0.6;
+    await playBeep(1200, 300, 'sine', loudVolume); // Short beep 1
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await playBeep(1200, 300, 'sine', loudVolume); // Short beep 2
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await playBeep(1200, 300, 'sine', loudVolume); // Short beep 3
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await playBeep(600, 1000, 'sine', loudVolume); // Long beep (1 second at 600Hz)
+  }, [playBeep]);
+
+  // Pool of audio elements for overlapping playback
+  const audioPoolRef = useRef<HTMLAudioElement[]>([]);
+
+  // Initialize audio pool
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      // Create a pool of 4 audio elements for overlapping playback
+      audioPoolRef.current = Array.from({ length: 4 }, () => new Audio());
+    }
+  }, []);
+
+  // Stop all active audio (main + simultaneous mode)
+  const stopAllAudio = useCallback(() => {
+    // Stop main audio ref
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    // Stop all simultaneous mode audio elements
+    activeAudioElementsRef.current.forEach(audio => {
+      audio.pause();
+      audio.src = '';
+    });
+    activeAudioElementsRef.current = [];
+    // Clear any pending simultaneous mode timeouts
+    simultaneousTimeoutsRef.current.forEach(timeout => clearTimeout(timeout));
+    simultaneousTimeoutsRef.current = [];
+  }, []);
 
   // Speak a pattern (sequence of numbers) using local audio files
   const speakPattern = useCallback(async (pattern: Pattern) => {
-    if (!audioRef.current || isPausedRef.current || pattern.length === 0) return;
+    if (isPausedRef.current || pattern.length === 0) return;
+
+    // Stop any previous audio before starting new pattern
+    stopAllAudio();
+
+    // Increment generation to track this pattern play
+    patternGenerationRef.current += 1;
+    const myGeneration = patternGenerationRef.current;
+
+    // Store pattern in a local variable to avoid stale closure issues
+    const currentPattern = [...pattern];
 
     try {
-      for (const num of pattern) {
-        if (isPausedRef.current) break;
+      // For simultaneous playback: fire all audio at once with small delays
+      if (config.audioOverlap >= 1000 && currentPattern.length > 1) {
+        // Simultaneous mode: play all numbers on top of each other
+        // Create dedicated audio elements to avoid pool contamination
+        const audioElements: HTMLAudioElement[] = [];
 
-        // Wait for any pending play to settle
-        if (playPromiseRef.current) {
-          await playPromiseRef.current.catch(() => { });
-        }
+        const audioPromises = currentPattern.map((num, index) => {
+          return new Promise<void>((resolve) => {
+            if (isPausedRef.current) {
+              resolve();
+              return;
+            }
 
-        // Stop any currently playing audio
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
+            const extension = VOICE_EXTENSIONS[config.voice];
+            const audioPath = `/sounds/${config.voice}/${num}.${extension}`;
 
-        // Play from local audio file using selected voice
-        const extension = VOICE_EXTENSIONS[config.voice];
-        audioRef.current.src = `/sounds/${config.voice}/${num}.${extension}`;
-        audioRef.current.playbackRate = config.playbackSpeed;
-        const playPromise = audioRef.current.play();
-        playPromiseRef.current = playPromise;
-        await playPromise;
+            // Small staggered delay between each number (80ms)
+            const staggerDelay = index * 80;
 
-        // Small pause between numbers in a pattern (adjusted by playback speed)
-        if (pattern.length > 1) {
-          const adjustedDelay = 400 / config.playbackSpeed;
-          await new Promise(resolve => setTimeout(resolve, adjustedDelay));
+            const timeout = setTimeout(() => {
+              // Check if a newer pattern started
+              if (isPausedRef.current || patternGenerationRef.current !== myGeneration) {
+                resolve();
+                return;
+              }
+
+              // Create a fresh audio element for each number
+              const audio = new Audio();
+              audioElements.push(audio);
+              activeAudioElementsRef.current.push(audio);
+
+              audio.src = audioPath;
+              audio.playbackRate = config.playbackSpeed;
+
+              audio.play().then(() => {
+                // Resolve when this audio finishes
+                const handleEnded = () => {
+                  audio.removeEventListener('ended', handleEnded);
+                  resolve();
+                };
+                audio.addEventListener('ended', handleEnded);
+              }).catch(() => {
+                resolve();
+              });
+            }, staggerDelay);
+            simultaneousTimeoutsRef.current.push(timeout);
+          });
+        });
+
+        // Wait for all audio to finish
+        await Promise.all(audioPromises);
+
+        // Clean up audio elements
+        audioElements.forEach(audio => {
+          audio.pause();
+          audio.src = '';
+        });
+      } else {
+        // Sequential mode with overlap (original behavior)
+        for (let i = 0; i < currentPattern.length; i++) {
+          // Check if a newer pattern started or paused
+          if (isPausedRef.current || patternGenerationRef.current !== myGeneration) break;
+
+          const num = currentPattern[i];
+          const audio = audioRef.current;
+          if (!audio) continue;
+
+          // Stop any currently playing audio
+          audio.pause();
+          audio.currentTime = 0;
+
+          const extension = VOICE_EXTENSIONS[config.voice];
+          const audioPath = `/sounds/${config.voice}/${num}.${extension}`;
+
+          // Wait for audio to be ready
+          await new Promise<void>((resolve, reject) => {
+            // Check generation at start
+            if (patternGenerationRef.current !== myGeneration) {
+              resolve();
+              return;
+            }
+            const handleCanPlay = () => {
+              audio.removeEventListener('canplaythrough', handleCanPlay);
+              audio.removeEventListener('error', handleError);
+              resolve();
+            };
+            const handleError = () => {
+              audio.removeEventListener('canplaythrough', handleCanPlay);
+              audio.removeEventListener('error', handleError);
+              reject(new Error(`Failed to load audio: ${audioPath}`));
+            };
+            audio.addEventListener('canplaythrough', handleCanPlay);
+            audio.addEventListener('error', handleError);
+            audio.src = audioPath;
+            audio.playbackRate = config.playbackSpeed;
+            audio.load();
+            setTimeout(() => {
+              audio.removeEventListener('canplaythrough', handleCanPlay);
+              audio.removeEventListener('error', handleError);
+              resolve();
+            }, 500);
+          });
+
+          // Check again after await
+          if (isPausedRef.current || patternGenerationRef.current !== myGeneration) break;
+
+          // Play the audio
+          const playPromise = audio.play();
+          playPromiseRef.current = playPromise;
+          await playPromise;
+
+          // Check again after playing
+          if (patternGenerationRef.current !== myGeneration) break;
+
+          // Wait for audio to finish (with overlap)
+          const overlapMs = config.audioOverlap;
+          if (overlapMs > 0 && i < currentPattern.length - 1) {
+            const durationMs = (audio.duration * 1000) / config.playbackSpeed;
+            const waitTime = Math.max(0, durationMs - overlapMs);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+          } else {
+            await new Promise<void>((resolve) => {
+              const handleEnded = () => {
+                audio.removeEventListener('ended', handleEnded);
+                resolve();
+              };
+              audio.addEventListener('ended', handleEnded);
+            });
+          }
         }
       }
     } catch (error) {
-      // Ignore abort errors (interrupted by pause) and NotAllowedError (autoplay policy)
       if (error instanceof Error && error.name !== "AbortError" && error.name !== "NotAllowedError") {
         console.error("Speech error:", error);
       }
     }
-  }, []);
+  }, [config.voice, config.playbackSpeed, config.audioOverlap]);
 
   // Pause/unpause audio when isPaused changes
   useEffect(() => {
-    if (isPaused && audioRef.current) {
-      audioRef.current.pause();
+    if (isPaused) {
+      stopAllAudio();
     }
-  }, [isPaused]);
+  }, [isPaused, stopAllAudio]);
 
   // Schedule next callout - using refs to avoid stale closures
   const scheduleCallout = useCallback(() => {
@@ -275,11 +497,16 @@ export default function Home() {
   }, [isPaused, phase, currentPattern, scheduleCallout]);
 
   // Start training
-  const startTraining = () => {
+  const startTraining = async () => {
     setCurrentRound(1);
+    setIsPaused(false);
+
+    // Play 2 short + 1 long beep before starting
+    await playRoundStartBeeps();
+
+    // Only start round timer after beeps finish
     setPhase("round");
     setTimeRemaining(config.minutesPerRound * 60);
-    setIsPaused(false);
 
     const currentSet = getCurrentPatternSet();
 
@@ -291,7 +518,7 @@ export default function Home() {
       speakPattern(randomPattern);
       setTimeout(() => setFlashActive(false), 500);
       scheduleCallout();
-    }, 2000);
+    }, 500);
   };
 
   // Timer effect - using refs to track current values and avoid stale closures
@@ -301,16 +528,25 @@ export default function Home() {
   isPausedRef.current = isPaused;
   const currentRoundRef = useRef(currentRound);
   currentRoundRef.current = currentRound;
+  const endBeepsPlayedRef = useRef(false);
+  const startBeepsPlayingRef = useRef(false);
 
   useEffect(() => {
     if (phaseRef.current === "round" || phaseRef.current === "rest") {
       timerRef.current = setInterval(() => {
         if (!isPausedRef.current) {
           setTimeRemaining((prev) => {
+            // Play 5 beeps when 5 seconds remaining in round
+            if (phaseRef.current === "round" && prev === 5 && !endBeepsPlayedRef.current) {
+              endBeepsPlayedRef.current = true;
+              playRoundEndBeeps();
+            }
+
             if (prev <= 1) {
               // Phase complete
               if (phaseRef.current === "round") {
                 // End of round
+                endBeepsPlayedRef.current = false;
                 if (currentRoundRef.current < config.rounds) {
                   setPhase("rest");
                   if (calloutRef.current) clearTimeout(calloutRef.current);
@@ -320,12 +556,16 @@ export default function Home() {
                   if (calloutRef.current) clearTimeout(calloutRef.current);
                   return 0;
                 }
-              } else {
-                // End of rest
-                setCurrentRound((r) => r + 1);
-                setPhase("round");
-                // Schedule first callout of new round
-                setTimeout(() => {
+              } else if (!startBeepsPlayingRef.current) {
+                // End of rest - play beeps first, then start round
+                startBeepsPlayingRef.current = true;
+                (async () => {
+                  await playRoundStartBeeps();
+                  // Only start round after beeps finish
+                  startBeepsPlayingRef.current = false;
+                  setCurrentRound((r) => r + 1);
+                  setPhase("round");
+                  setTimeRemaining(config.minutesPerRound * 60);
                   const currentSet = getCurrentPatternSet();
                   const randomPattern = currentSet.patterns[Math.floor(Math.random() * currentSet.patterns.length)];
                   setCurrentPattern(randomPattern);
@@ -333,8 +573,12 @@ export default function Home() {
                   speakPattern(randomPattern);
                   setTimeout(() => setFlashActive(false), 500);
                   scheduleCallout();
-                }, 2000);
-                return config.minutesPerRound * 60;
+                })();
+                // Return same time while waiting for beeps
+                return prev;
+              } else {
+                // Still waiting for beeps to finish
+                return prev;
               }
             }
             return prev - 1;
@@ -346,7 +590,7 @@ export default function Home() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [phase, config, patternSets, scheduleCallout, speakPattern]);
+  }, [phase, config, patternSets, scheduleCallout, speakPattern, playRoundStartBeeps, playRoundEndBeeps]);
 
   // Reset to setup
   const resetTraining = () => {
@@ -1060,6 +1304,29 @@ export default function Home() {
                 <span>Slow (0.5x)</span>
                 <span>Normal (1.0x)</span>
                 <span>Fast (2.0x)</span>
+              </div>
+            </div>
+
+            {/* Audio Overlap */}
+            <div className="mb-8">
+              <label className="block text-sm uppercase tracking-widest text-rope-gray mb-3" style={{ fontFamily: 'var(--font-oswald)' }}>
+                Audio Overlap: <span className="text-blood">{config.audioOverlap}ms</span>
+                <span className="text-rope-gray/70 text-xs ml-2">
+                  ({config.audioOverlap >= 1000 ? '≥1000ms = simultaneous playback!' : 'negative delay between numbers'})
+                </span>
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="1500"
+                step="100"
+                value={config.audioOverlap}
+                onChange={(e) => updateConfig("audioOverlap", parseInt(e.target.value))}
+              />
+              <div className="flex justify-between text-xs text-rope-gray mt-1">
+                <span>Sequential</span>
+                <span>Overlap</span>
+                <span>Simultaneous!</span>
               </div>
             </div>
 
