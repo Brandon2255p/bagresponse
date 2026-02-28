@@ -22,17 +22,54 @@ const DEFAULT_PATTERNS: Pattern[] = [
   [1], [2], [3], [4], [5], [6], [7], [8]
 ];
 
+const STORAGE_KEY = "bagresponse-settings";
+
 export default function Home() {
+  // Load config from localStorage or use defaults
+  const loadSavedConfig = (): TrainingConfig => {
+    if (typeof window === "undefined") {
+      return {
+        rounds: 10,
+        minutesPerRound: 2,
+        restSeconds: 30,
+        patterns: [...DEFAULT_PATTERNS],
+        minDelay: 2,
+        maxDelay: 5,
+        playbackSpeed: 1.0,
+      };
+    }
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Ensure patterns are valid
+        if (parsed.patterns && Array.isArray(parsed.patterns) && parsed.patterns.length > 0) {
+          return { ...parsed };
+        }
+      } catch {
+        // Fall through to defaults
+      }
+    }
+    return {
+      rounds: 10,
+      minutesPerRound: 2,
+      restSeconds: 30,
+      patterns: [...DEFAULT_PATTERNS],
+      minDelay: 2,
+      maxDelay: 5,
+      playbackSpeed: 1.0,
+    };
+  };
+
   // Training configuration
-  const [config, setConfig] = useState<TrainingConfig>({
-    rounds: 10,
-    minutesPerRound: 2,
-    restSeconds: 30,
-    patterns: [...DEFAULT_PATTERNS],
-    minDelay: 2,
-    maxDelay: 5,
-    playbackSpeed: 1.0,
-  });
+  const [config, setConfig] = useState<TrainingConfig>(loadSavedConfig());
+
+  // Save config to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+    }
+  }, [config]);
 
   // Training state
   const [phase, setPhase] = useState<Phase>("setup");
