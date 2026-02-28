@@ -421,7 +421,7 @@ export default function Home() {
   // Views
   if (phase === "setup" && setupView === "audio") {
     return (
-      <main className="min-h-screen bg-void text-canvas p-6 md:p-12">
+      <main className="min-h-screen bg-void text-canvas p-6 pt-20 md:p-12">
         <div className="max-w-2xl mx-auto">
           <div className="text-center mb-8">
             <h1 className="text-5xl md:text-7xl tracking-wider blood-accent" style={{ fontFamily: 'var(--font-bebas)' }}>
@@ -505,7 +505,7 @@ export default function Home() {
 
   if (phase === "setup" && setupView === "pattern-sets") {
     return (
-      <main className="min-h-screen bg-void text-canvas p-6 md:p-12">
+      <main className="min-h-screen bg-void text-canvas p-6 pt-20 md:p-12">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
             <h1 className="text-5xl md:text-7xl tracking-wider blood-accent" style={{ fontFamily: 'var(--font-bebas)' }}>
@@ -734,7 +734,7 @@ export default function Home() {
     const currentSet = getCurrentPatternSet();
 
     return (
-      <main className="min-h-screen bg-void text-canvas p-6 md:p-12">
+      <main className="min-h-screen bg-void text-canvas p-6 pt-20 md:p-12">
         <div className="max-w-2xl mx-auto">
           <div className="text-center mb-12">
             <div className="mb-6">
