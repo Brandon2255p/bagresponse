@@ -1,0 +1,215 @@
+@import "tailwindcss";
+
+:root {
+  --void: #0d0d0d;
+  --canvas: #f5f5f5;
+  --blood: #e63946;
+  --blood-dark: #c62828;
+  --ring-gold: #d4af37;
+  --concrete: #2a2a2a;
+  --rope-gray: #4a4a4a;
+  --glove-red: #ff2e2e;
+  --timer-glow: rgba(230, 57, 70, 0.3);
+}
+
+@theme inline {
+  --color-void: var(--void);
+  --color-canvas: var(--canvas);
+  --color-blood: var(--blood);
+  --color-blood-dark: var(--blood-dark);
+  --color-ring-gold: var(--ring-gold);
+  --color-concrete: var(--concrete);
+  --color-rope-gray: var(--rope-gray);
+  --color-glove-red: var(--glove-red);
+  --font-bebas: var(--font-bebas);
+  --font-oswald: var(--font-oswald);
+}
+
+body {
+  background: var(--void);
+  color: var(--canvas);
+  font-family: var(--font-oswald), system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+/* Grain texture overlay */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* Custom range slider styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: var(--rope-gray);
+  border-radius: 2px;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--blood);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  background: var(--glove-red);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: var(--blood);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+input[type="range"]::-moz-range-thumb:hover {
+  transform: scale(1.2);
+  background: var(--glove-red);
+}
+
+/* Number input styling */
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Timer pulse animation */
+@keyframes timer-pulse {
+
+  0%,
+  100% {
+    text-shadow: 0 0 20px var(--timer-glow), 0 0 40px var(--timer-glow);
+  }
+
+  50% {
+    text-shadow: 0 0 30px var(--timer-glow), 0 0 60px var(--timer-glow), 0 0 80px rgba(230, 57, 70, 0.2);
+  }
+}
+
+.timer-active {
+  animation: timer-pulse 1s ease-in-out infinite;
+}
+
+/* Ring rope decoration */
+.ring-rope {
+  position: relative;
+}
+
+.ring-rope::before,
+.ring-rope::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--ring-gold), transparent);
+}
+
+.ring-rope::before {
+  top: 0;
+}
+
+.ring-rope::after {
+  bottom: 0;
+}
+
+/* Button hover glow */
+.btn-glow {
+  transition: all 0.3s ease;
+}
+
+.btn-glow:hover {
+  box-shadow: 0 0 20px var(--timer-glow), 0 0 40px var(--timer-glow);
+}
+
+/* Number callout flash effect */
+@keyframes callout-flash {
+  0% {
+    background: transparent;
+  }
+
+  50% {
+    background: rgba(230, 57, 70, 0.1);
+  }
+
+  100% {
+    background: transparent;
+  }
+}
+
+.callout-flash {
+  animation: callout-flash 0.5s ease-out;
+}
+
+/* Round indicator active state */
+.round-active {
+  background: var(--blood);
+  box-shadow: 0 0 15px var(--blood);
+}
+
+.round-complete {
+  background: var(--ring-gold);
+}
+
+.round-pending {
+  background: var(--rope-gray);
+}
+
+/* Progress ring animation */
+@keyframes progress-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Rest period styling */
+.rest-period {
+  background: linear-gradient(135deg, var(--concrete) 0%, var(--void) 100%);
+}
+
+/* Blood drip accent */
+.blood-accent {
+  position: relative;
+}
+
+.blood-accent::after {
+  content: "";
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 3px;
+  background: var(--blood);
+  border-radius: 2px;
+}
