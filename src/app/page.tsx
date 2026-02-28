@@ -12,6 +12,7 @@ interface TrainingConfig {
   patterns: Pattern[];
   minDelay: number;
   maxDelay: number;
+  playbackSpeed: number;
 }
 
 type Phase = "setup" | "round" | "rest" | "complete";
@@ -30,6 +31,7 @@ export default function Home() {
     patterns: [...DEFAULT_PATTERNS],
     minDelay: 2,
     maxDelay: 5,
+    playbackSpeed: 1.0,
   });
 
   // Training state
@@ -77,13 +79,15 @@ export default function Home() {
 
         // Play from local audio file
         audioRef.current.src = `/sounds/${num}.wav`;
+        audioRef.current.playbackRate = config.playbackSpeed;
         const playPromise = audioRef.current.play();
         playPromiseRef.current = playPromise;
         await playPromise;
 
-        // Small pause between numbers in a pattern
+        // Small pause between numbers in a pattern (adjusted by playback speed)
         if (pattern.length > 1) {
-          await new Promise(resolve => setTimeout(resolve, 400));
+          const adjustedDelay = 400 / config.playbackSpeed;
+          await new Promise(resolve => setTimeout(resolve, adjustedDelay));
         }
       }
     } catch (error) {
@@ -390,6 +394,26 @@ export default function Home() {
               <p className="text-xs text-rope-gray mt-2">
                 Enter patterns like "1 1 2", "1 2", or "1 2 1 2"
               </p>
+            </div>
+
+            {/* Playback Speed */}
+            <div className="mb-8">
+              <label className="block text-sm uppercase tracking-widest text-rope-gray mb-3" style={{ fontFamily: 'var(--font-oswald)' }}>
+                Playback Speed: <span className="text-blood">{config.playbackSpeed.toFixed(1)}x</span>
+              </label>
+              <input
+                type="range"
+                min="0.5"
+                max="2.0"
+                step="0.1"
+                value={config.playbackSpeed}
+                onChange={(e) => updateConfig("playbackSpeed", parseFloat(e.target.value))}
+              />
+              <div className="flex justify-between text-xs text-rope-gray mt-1">
+                <span>Slow (0.5x)</span>
+                <span>Normal (1.0x)</span>
+                <span>Fast (2.0x)</span>
+              </div>
             </div>
 
             {/* Callout Delay */}
