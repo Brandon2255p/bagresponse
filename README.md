@@ -1,5 +1,7 @@
 # BagResponse
 
+**Live App: https://bagresponse.openprocess.me/**
+
 A high-intensity boxing training application with pattern-based audio callouts for punch combinations. Train like a pro with customizable rounds, voice-guided combinations, and a distraction-free interface designed for the gym.
 
 ## Overview
@@ -21,7 +23,7 @@ BagResponse is a Progressive Web App (PWA) designed for boxers and fitness enthu
 - **Share & Import**: Share pattern sets via URL-encoded links that others can import with one click
 
 ### Audio System
-- **Multiple Voice Options**: Choose from Male Voice 1, Male Voice 2, or Female Voice 1
+- **Multiple Voice Options**: Choose from Male Voice 1, Male Voice 2, Female Voice 1, or Female Voice 2
 - **Adjustable Playback Speed**: Speed up or slow down callouts (0.5x to 2.0x)
 - **Audio Overlap Control**: Configure sequential playback (0ms) to simultaneous playback (1000ms+) for overlapping callouts
 - **Round Start/End Beeps**: Audio cues signal round transitions (2 short + 1 long beep to start, 3 short + 1 long beep to end)
@@ -100,7 +102,7 @@ npm start
 
 ### Audio Settings Explained
 
-- **Voice**: Select from 3 pre-recorded voice packs
+- **Voice**: Select from 4 pre-recorded voice packs (Female Voice 2 is default)
 - **Playback Speed**: Slow down for beginners, speed up for advanced training
 - **Audio Overlap**:
   - 0ms: Sequential playback (numbers play one after another)
@@ -126,6 +128,7 @@ The app uses pre-recorded voice files located in `public/sounds/`:
 - `man_1/`: Male voice 1 (WAV format)
 - `man_2/`: Male voice 2 (MP3 format)
 - `woman_1/`: Female voice 1 (MP3 format)
+- `woman_2/`: Female voice 2 (MP3 format)
 
 Each directory contains numbered files 1-8 corresponding to punch numbers.
 

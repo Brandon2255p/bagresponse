@@ -20,7 +20,7 @@ export const DEFAULT_CONFIG: TrainingConfig = {
     baseDelay: 3,
     delayVariance: 2,
     playbackSpeed: 1.0,
-    voice: 'man_1',
+    voice: 'woman_2',
     audioOverlap: 0,
 };
 
