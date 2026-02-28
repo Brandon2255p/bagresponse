@@ -233,6 +233,7 @@ export default function Home() {
             }
 
             // Play start beeps when 3 seconds remaining in rest
+            // Only play if rest period is >= 3 seconds (otherwise already played when entering rest)
             if (phaseRef.current === "rest" && prev === 3 && !startBeepsPlayingRef.current) {
               startBeepsPlayingRef.current = true;
               playRoundStartBeeps();
@@ -245,11 +246,13 @@ export default function Home() {
                 if (calloutRef.current) clearTimeout(calloutRef.current);
                 if (currentRoundRef.current < config.rounds) {
                   setPhase("rest");
-                  // Reset start beeps ref when entering rest, and play immediately if rest < 3s
-                  startBeepsPlayingRef.current = false;
+                  // Reset start beeps ref when entering rest
+                  // Play immediately if rest < 3s since timer won't hit the 3s mark
                   if (config.restSeconds < 3) {
-                    startBeepsPlayingRef.current = true;
                     playRoundStartBeeps();
+                  } else {
+                    // Reset ref so timer will trigger at 3s
+                    startBeepsPlayingRef.current = false;
                   }
                   return config.restSeconds;
                 } else {
@@ -257,8 +260,7 @@ export default function Home() {
                   return 0;
                 }
               } else {
-                // End of rest - start round immediately (beeps already played at 3s)
-                startBeepsPlayingRef.current = false;
+                // End of rest - start round immediately (beeps already played at 3s or earlier)
                 setCurrentRound((r) => r + 1);
                 setPhase("round");
                 setTimeRemaining(config.roundSeconds);

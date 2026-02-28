@@ -1,4 +1,10 @@
-const CACHE_NAME = 'bagresponse-audio-cache-v1';
+const CACHE_NAME = 'bagresponse-cache-v2';
+
+// App shell files to cache
+const APP_SHELL_FILES = [
+    '/',
+    '/manifest.json',
+];
 
 // Audio files to cache
 const AUDIO_FILES = [
@@ -29,18 +35,29 @@ const AUDIO_FILES = [
     '/sounds/woman_1/6.mp3',
     '/sounds/woman_1/7.mp3',
     '/sounds/woman_1/8.mp3',
+    // woman_2 voice (mp3)
+    '/sounds/woman_2/1.mp3',
+    '/sounds/woman_2/2.mp3',
+    '/sounds/woman_2/3.mp3',
+    '/sounds/woman_2/4.mp3',
+    '/sounds/woman_2/5.mp3',
+    '/sounds/woman_2/6.mp3',
+    '/sounds/woman_2/7.mp3',
+    '/sounds/woman_2/8.mp3',
 ];
 
-// Install event - cache audio files
+const ALL_CACHED_FILES = [...APP_SHELL_FILES, ...AUDIO_FILES];
+
+// Install event - cache app shell and audio files
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then((cache) => {
-                console.log('Caching audio files...');
-                return cache.addAll(AUDIO_FILES);
+                console.log('[SW] Caching app shell and audio files...');
+                return cache.addAll(ALL_CACHED_FILES);
             })
             .catch((err) => {
-                console.error('Failed to cache audio files:', err);
+                console.error('[SW] Failed to cache files:', err);
             })
     );
     // Activate immediately
@@ -54,37 +71,60 @@ self.addEventListener('activate', (event) => {
             return Promise.all(
                 cacheNames
                     .filter((name) => name !== CACHE_NAME)
-                    .map((name) => caches.delete(name))
+                    .map((name) => {
+                        console.log('[SW] Deleting old cache:', name);
+                        return caches.delete(name);
+                    })
             );
         })
     );
+    // Take control of all clients immediately
     self.clients.claim();
 });
 
-// Fetch event - serve from cache when available
+// Fetch event - serve from cache when available, with network fallback
 self.addEventListener('fetch', (event) => {
     const { request } = event;
+    const url = new URL(request.url);
 
-    // Only cache audio files from the sounds directory
-    if (request.url.includes('/sounds/')) {
-        event.respondWith(
-            caches.match(request).then((response) => {
-                // Return cached version or fetch from network
-                if (response) {
-                    return response;
-                }
-
-                return fetch(request).then((networkResponse) => {
-                    // Cache the new response for future
-                    if (networkResponse && networkResponse.status === 200) {
-                        const responseToCache = networkResponse.clone();
-                        caches.open(CACHE_NAME).then((cache) => {
-                            cache.put(request, responseToCache);
-                        });
-                    }
-                    return networkResponse;
-                });
-            })
-        );
+    // Skip non-GET requests
+    if (request.method !== 'GET') {
+        return;
     }
+
+    // Skip cross-origin requests
+    if (url.origin !== self.location.origin) {
+        return;
+    }
+
+    event.respondWith(
+        caches.match(request).then((response) => {
+            // Return cached version if available
+            if (response) {
+                return response;
+            }
+
+            // Otherwise fetch from network
+            return fetch(request)
+                .then((networkResponse) => {
+                    // Don't cache if not a valid response
+                    if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
+                        return networkResponse;
+                    }
+
+                    // Cache the new response for future
+                    const responseToCache = networkResponse.clone();
+                    caches.open(CACHE_NAME).then((cache) => {
+                        cache.put(request, responseToCache);
+                    });
+
+                    return networkResponse;
+                })
+                .catch((error) => {
+                    console.error('[SW] Fetch failed:', error);
+                    // You could return a custom offline page here
+                    throw error;
+                });
+        })
+    );
 });

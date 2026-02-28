@@ -1,8 +1,10 @@
 {
     "name": "BAGRESPONSE - Boxing Training Timer",
     "short_name": "BAGRESPONSE",
+    "id": "/",
     "description": "High-intensity boxing training with pattern-based audio callouts",
     "start_url": "/",
+    "scope": "/",
     "display": "standalone",
     "background_color": "#0d0d0d",
     "theme_color": "#0d0d0d",
@@ -12,25 +14,25 @@
             "src": "/favicon/favicon-64x64.png",
             "sizes": "64x64",
             "type": "image/png",
-            "purpose": "any maskable"
+            "purpose": "any"
         },
         {
             "src": "/favicon/favicon-128x128.png",
             "sizes": "128x128",
             "type": "image/png",
-            "purpose": "any maskable"
+            "purpose": "any"
         },
         {
             "src": "/favicon/favicon-256x256.png",
             "sizes": "256x256",
             "type": "image/png",
-            "purpose": "any maskable"
+            "purpose": "any"
         },
         {
             "src": "/favicon/favicon-512x512.png",
             "sizes": "512x512",
             "type": "image/png",
-            "purpose": "any maskable"
+            "purpose": "any"
         }
     ],
     "categories": [
@@ -38,5 +40,7 @@
         "fitness",
         "sports"
     ],
-    "lang": "en"
+    "lang": "en",
+    "dir": "ltr",
+    "prefer_related_applications": false
 }

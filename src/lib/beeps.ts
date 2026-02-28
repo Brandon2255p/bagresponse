@@ -2,6 +2,8 @@ import { useRef, useCallback, useEffect } from 'react';
 
 export function useBeeps() {
     const audioContextRef = useRef<AudioContext | null>(null);
+    const isPlayingStartBeepsRef = useRef(false);
+    const isPlayingEndBeepsRef = useRef(false);
 
     // Initialize audio context
     useEffect(() => {
@@ -50,23 +52,44 @@ export function useBeeps() {
 
     // Play round start sequence: 2 short beeps + 1 long beep
     const playRoundStartBeeps = useCallback(async () => {
-        await playBeep(1000, 300);
-        await new Promise(resolve => setTimeout(resolve, 500));
-        await playBeep(1000, 300);
-        await new Promise(resolve => setTimeout(resolve, 500));
-        await playBeep(800, 600);
+        // Prevent overlapping calls
+        if (isPlayingStartBeepsRef.current) {
+            return;
+        }
+        isPlayingStartBeepsRef.current = true;
+
+        try {
+            const loudVolume = 0.6;
+            await playBeep(1200, 300, 'sine', loudVolume);
+            await new Promise(resolve => setTimeout(resolve, 700));
+            await playBeep(1200, 300, 'sine', loudVolume);
+            await new Promise(resolve => setTimeout(resolve, 700));
+            await playBeep(600, 1000, 'sine', loudVolume);
+        } finally {
+            isPlayingStartBeepsRef.current = false;
+        }
     }, [playBeep]);
 
     // Play round end sequence: 3 short beeps + 1 long beep (louder)
     const playRoundEndBeeps = useCallback(async () => {
-        const loudVolume = 0.6;
-        await playBeep(1200, 300, 'sine', loudVolume);
-        await new Promise(resolve => setTimeout(resolve, 500));
-        await playBeep(1200, 300, 'sine', loudVolume);
-        await new Promise(resolve => setTimeout(resolve, 500));
-        await playBeep(1200, 300, 'sine', loudVolume);
-        await new Promise(resolve => setTimeout(resolve, 500));
-        await playBeep(600, 1000, 'sine', loudVolume);
+        // Prevent overlapping calls
+        if (isPlayingEndBeepsRef.current) {
+            return;
+        }
+        isPlayingEndBeepsRef.current = true;
+
+        try {
+            const loudVolume = 0.6;
+            await playBeep(1000, 400, 'sine', loudVolume);
+            await new Promise(resolve => setTimeout(resolve, 600));
+            await playBeep(1000, 400, 'sine', loudVolume);
+            await new Promise(resolve => setTimeout(resolve, 600));
+            await playBeep(1000, 400, 'sine', loudVolume);
+            await new Promise(resolve => setTimeout(resolve, 600));
+            await playBeep(600, 1000, 'sine', loudVolume);
+        } finally {
+            isPlayingEndBeepsRef.current = false;
+        }
     }, [playBeep]);
 
     return {
