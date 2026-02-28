@@ -1,97 +1,37 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-
-// A pattern is a sequence of numbers (e.g., [1, 1, 2] or [1, 2])
-type Pattern = number[];
-
-// A pattern set has a name and collection of patterns
-interface PatternSet {
-  id: string;
-  name: string;
-  patterns: Pattern[];
-  isDefault?: boolean;
-}
-
-interface TrainingConfig {
-  rounds: number;
-  minutesPerRound: number;
-  restSeconds: number;
-  selectedPatternSetId: string;
-  baseDelay: number;
-  delayVariance: number;
-  playbackSpeed: number;
-  voice: VoiceOption;
-  audioOverlap: number; // milliseconds to overlap audio files (negative delay)
-}
-
-// Voice options for callouts
-type VoiceOption = "man_1" | "man_2" | "woman_1";
-
-const VOICE_OPTIONS: { value: VoiceOption; label: string }[] = [
-  { value: "man_1", label: "Male Voice 1" },
-  { value: "man_2", label: "Male Voice 2" },
-  { value: "woman_1", label: "Female Voice 1" },
-];
-
-// File extension for each voice
-const VOICE_EXTENSIONS: Record<VoiceOption, string> = {
-  man_1: "wav",
-  man_2: "mp3",
-  woman_1: "mp3",
-};
-
-type Phase = "setup" | "round" | "rest" | "complete";
-type SetupView = "main" | "pattern-sets";
-
-// Predefined pattern sets
-const DEFAULT_PATTERN_SETS: PatternSet[] = [
-  {
-    id: "basic-1",
-    name: "Basic 1",
-    patterns: [[1], [2], [1, 2]],
-    isDefault: true,
-  },
-  {
-    id: "basic-2",
-    name: "Basic 2",
-    patterns: [[3], [4], [3, 4]],
-    isDefault: true,
-  },
-  {
-    id: "basic-3",
-    name: "Basic 3",
-    patterns: [[1, 2, 3, 4], [1, 2], [3, 4]],
-    isDefault: true,
-  },
-  {
-    id: "advanced",
-    name: "Advanced",
-    patterns: [[1, 1, 2], [1, 2, 1, 2], [1, 2, 3, 4], [3, 4]],
-    isDefault: true,
-  },
-];
-
-const STORAGE_KEY_CONFIG = "bagresponse-settings";
-const STORAGE_KEY_PATTERN_SETS = "bagresponse-pattern-sets";
+import {
+  type Pattern,
+  type PatternSet,
+  DEFAULT_PATTERN_SETS,
+  formatPattern,
+  generateRandomPatternSet,
+  generateCustomRandomSet,
+  encodePatternSet,
+  decodePatternSet,
+  importPatternSet,
+  VOICE_OPTIONS,
+  type VoiceOption,
+  DEFAULT_CONFIG,
+  STORAGE_KEY_CONFIG,
+  STORAGE_KEY_PATTERN_SETS,
+  type Phase,
+  type SetupView,
+  useBeeps,
+  useAudio,
+  ROUND_TIME_MIN,
+  ROUND_TIME_MAX,
+  ROUND_TIME_STEP,
+} from "@/lib";
 
 export default function Home() {
-  // Pattern sets state - start with defaults, load from storage in useEffect
+  // Pattern sets state
   const [patternSets, setPatternSets] = useState<PatternSet[]>(DEFAULT_PATTERN_SETS);
   const [patternSetsLoaded, setPatternSetsLoaded] = useState(false);
 
-  // Training configuration - start with defaults, load from storage in useEffect
-  const [config, setConfig] = useState<TrainingConfig>({
-    rounds: 10,
-    minutesPerRound: 2,
-    restSeconds: 30,
-    selectedPatternSetId: DEFAULT_PATTERN_SETS[0].id,
-    baseDelay: 3,
-    delayVariance: 2,
-    playbackSpeed: 1.0,
-    voice: "man_1",
-    audioOverlap: 0, // default: no overlap
-  });
+  // Training configuration
+  const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [configLoaded, setConfigLoaded] = useState(false);
 
   // Training state
@@ -114,67 +54,95 @@ export default function Home() {
   const [shareUrl, setShareUrl] = useState("");
   const [copySuccess, setCopySuccess] = useState(false);
 
-  // Refs for timer management
+  // Timer refs
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const calloutRef = useRef<NodeJS.Timeout | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const activeAudioElementsRef = useRef<HTMLAudioElement[]>([]);
-  const simultaneousTimeoutsRef = useRef<NodeJS.Timeout[]>([]);
+  const phaseRef = useRef(phase);
+  const isPausedRef = useRef(isPaused);
+  const currentRoundRef = useRef(currentRound);
+  const endBeepsPlayedRef = useRef(false);
+  const startBeepsPlayingRef = useRef(false);
 
-  // Initialize audio element and load from localStorage on client
+  // Audio hooks
+  const { playRoundStartBeeps, playRoundEndBeeps } = useBeeps();
+  const { speakPattern, stopAllAudio, setPaused } = useAudio(
+    config.playbackSpeed,
+    config.audioOverlap,
+    config.voice
+  );
+
+  // Update refs when state changes
+  phaseRef.current = phase;
+  isPausedRef.current = isPaused;
+  currentRoundRef.current = currentRound;
+
+  // Sync paused state with audio hook
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      audioRef.current = new Audio();
+    setPaused(isPaused);
+  }, [isPaused, setPaused]);
 
-      // Check for shared pattern set in URL
-      const urlParams = new URLSearchParams(window.location.search);
-      const importParam = urlParams.get("import");
-      if (importParam) {
-        const sharedSet = decodePatternSet(importParam);
-        if (sharedSet) {
-          setSharedSetPreview(sharedSet);
-        }
-      }
-
-      // Load pattern sets from localStorage
-      const savedSets = localStorage.getItem(STORAGE_KEY_PATTERN_SETS);
-      if (savedSets) {
-        try {
-          const parsed = JSON.parse(savedSets);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            // Merge with defaults to ensure all default sets exist
-            const savedIds = new Set(parsed.map((s: PatternSet) => s.id));
-            const missingDefaults = DEFAULT_PATTERN_SETS.filter(d => !savedIds.has(d.id));
-            setPatternSets([...parsed, ...missingDefaults]);
-          }
-        } catch {
-          // Keep defaults on error
-        }
-      }
-      setPatternSetsLoaded(true);
-
-      // Load config from localStorage
-      const savedConfig = localStorage.getItem(STORAGE_KEY_CONFIG);
-      if (savedConfig) {
-        try {
-          const parsed = JSON.parse(savedConfig);
-          setConfig(prev => ({ ...prev, ...parsed }));
-        } catch {
-          // Keep defaults on error
-        }
-      }
-      setConfigLoaded(true);
+  // Stop audio when paused
+  useEffect(() => {
+    if (isPaused) {
+      stopAllAudio();
     }
+  }, [isPaused, stopAllAudio]);
+
+  // Initialize and load from localStorage
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    // Check for shared pattern set in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const importParam = urlParams.get("import");
+    if (importParam) {
+      const sharedSet = decodePatternSet(importParam);
+      if (sharedSet) {
+        setSharedSetPreview(sharedSet);
+      }
+    }
+
+    // Load pattern sets from localStorage
+    const savedSets = localStorage.getItem(STORAGE_KEY_PATTERN_SETS);
+    if (savedSets) {
+      try {
+        const parsed = JSON.parse(savedSets);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const savedIds = new Set(parsed.map((s: PatternSet) => s.id));
+          const missingDefaults = DEFAULT_PATTERN_SETS.filter(d => !savedIds.has(d.id));
+          setPatternSets([...parsed, ...missingDefaults]);
+        }
+      } catch {
+        // Keep defaults on error
+      }
+    }
+    setPatternSetsLoaded(true);
+
+    // Load config from localStorage
+    const savedConfig = localStorage.getItem(STORAGE_KEY_CONFIG);
+    if (savedConfig) {
+      try {
+        const parsed = JSON.parse(savedConfig);
+        // Migrate old config: minutesPerRound -> roundSeconds
+        if (parsed.minutesPerRound && !parsed.roundSeconds) {
+          parsed.roundSeconds = Math.round(parsed.minutesPerRound * 60);
+          delete parsed.minutesPerRound;
+        }
+        setConfig(prev => ({ ...prev, ...parsed }));
+      } catch {
+        // Keep defaults on error
+      }
+    }
+    setConfigLoaded(true);
   }, []);
 
-  // Save config to localStorage whenever it changes (only after initial load)
+  // Save to localStorage
   useEffect(() => {
     if (typeof window !== "undefined" && configLoaded) {
       localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(config));
     }
   }, [config, configLoaded]);
 
-  // Save pattern sets to localStorage whenever they change (only after initial load)
   useEffect(() => {
     if (typeof window !== "undefined" && patternSetsLoaded) {
       localStorage.setItem(STORAGE_KEY_PATTERN_SETS, JSON.stringify(patternSets));
@@ -182,284 +150,16 @@ export default function Home() {
   }, [patternSets, patternSetsLoaded]);
 
   // Get current pattern set
-  const getCurrentPatternSet = (): PatternSet => {
+  const getCurrentPatternSet = useCallback((): PatternSet => {
     return patternSets.find(s => s.id === config.selectedPatternSetId) || patternSets[0];
-  };
+  }, [patternSets, config.selectedPatternSetId]);
 
-  // Track play promise to handle interruptions
-  const playPromiseRef = useRef<Promise<void> | null>(null);
-  const patternGenerationRef = useRef(0);
-
-  // Audio context for generating beeps
-  const audioContextRef = useRef<AudioContext | null>(null);
-
-  // Initialize audio context
-  useEffect(() => {
-    if (typeof window !== "undefined" && !audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-    }
-  }, []);
-
-  // Play a single beep using Web Audio API
-  const playBeep = useCallback((frequency: number = 800, duration: number = 200, type: OscillatorType = 'sine', volume: number = 0.3): Promise<void> => {
-    return new Promise((resolve) => {
-      if (!audioContextRef.current) {
-        resolve();
-        return;
-      }
-
-      const ctx = audioContextRef.current;
-      const oscillator = ctx.createOscillator();
-      const gainNode = ctx.createGain();
-
-      oscillator.connect(gainNode);
-      gainNode.connect(ctx.destination);
-
-      oscillator.frequency.value = frequency;
-      oscillator.type = type;
-
-      // Envelope for smoother sound
-      gainNode.gain.setValueAtTime(0, ctx.currentTime);
-      gainNode.gain.linearRampToValueAtTime(volume, ctx.currentTime + 0.05);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration / 1000);
-
-      oscillator.start(ctx.currentTime);
-      oscillator.stop(ctx.currentTime + duration / 1000);
-
-      setTimeout(() => {
-        resolve();
-      }, duration);
-    });
-  }, []);
-
-  // Play multiple beeps with same duration
-  const playBeeps = useCallback(async (count: number, frequency?: number, duration?: number, pauseBetween?: number) => {
-    const pause = pauseBetween ?? 300;
-    for (let i = 0; i < count; i++) {
-      await playBeep(frequency, duration);
-      if (i < count - 1) {
-        await new Promise(resolve => setTimeout(resolve, pause));
-      }
-    }
-  }, [playBeep]);
-
-  // Play round start sequence: 2 short beeps (300ms) + 1 long beep (600ms), 500ms between
-  const playRoundStartBeeps = useCallback(async () => {
-    await playBeep(1000, 300); // Short beep 1
-    await new Promise(resolve => setTimeout(resolve, 500));
-    await playBeep(1000, 300); // Short beep 2
-    await new Promise(resolve => setTimeout(resolve, 500));
-    await playBeep(800, 600);  // Long beep
-  }, [playBeep]);
-
-  // Play round end sequence: 3 short beeps (300ms, 1200Hz) + 1 long beep (1000ms, 600Hz), louder
-  const playRoundEndBeeps = useCallback(async () => {
-    const loudVolume = 0.6;
-    await playBeep(1200, 300, 'sine', loudVolume); // Short beep 1
-    await new Promise(resolve => setTimeout(resolve, 500));
-    await playBeep(1200, 300, 'sine', loudVolume); // Short beep 2
-    await new Promise(resolve => setTimeout(resolve, 500));
-    await playBeep(1200, 300, 'sine', loudVolume); // Short beep 3
-    await new Promise(resolve => setTimeout(resolve, 500));
-    await playBeep(600, 1000, 'sine', loudVolume); // Long beep (1 second at 600Hz)
-  }, [playBeep]);
-
-  // Pool of audio elements for overlapping playback
-  const audioPoolRef = useRef<HTMLAudioElement[]>([]);
-
-  // Initialize audio pool
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      // Create a pool of 4 audio elements for overlapping playback
-      audioPoolRef.current = Array.from({ length: 4 }, () => new Audio());
-    }
-  }, []);
-
-  // Stop all active audio (main + simultaneous mode)
-  const stopAllAudio = useCallback(() => {
-    // Stop main audio ref
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
-    // Stop all simultaneous mode audio elements
-    activeAudioElementsRef.current.forEach(audio => {
-      audio.pause();
-      audio.src = '';
-    });
-    activeAudioElementsRef.current = [];
-    // Clear any pending simultaneous mode timeouts
-    simultaneousTimeoutsRef.current.forEach(timeout => clearTimeout(timeout));
-    simultaneousTimeoutsRef.current = [];
-  }, []);
-
-  // Speak a pattern (sequence of numbers) using local audio files
-  const speakPattern = useCallback(async (pattern: Pattern) => {
-    if (isPausedRef.current || pattern.length === 0) return;
-
-    // Stop any previous audio before starting new pattern
-    stopAllAudio();
-
-    // Increment generation to track this pattern play
-    patternGenerationRef.current += 1;
-    const myGeneration = patternGenerationRef.current;
-
-    // Store pattern in a local variable to avoid stale closure issues
-    const currentPattern = [...pattern];
-
-    try {
-      // For simultaneous playback: fire all audio at once with small delays
-      if (config.audioOverlap >= 1000 && currentPattern.length > 1) {
-        // Simultaneous mode: play all numbers on top of each other
-        // Create dedicated audio elements to avoid pool contamination
-        const audioElements: HTMLAudioElement[] = [];
-
-        const audioPromises = currentPattern.map((num, index) => {
-          return new Promise<void>((resolve) => {
-            if (isPausedRef.current) {
-              resolve();
-              return;
-            }
-
-            const extension = VOICE_EXTENSIONS[config.voice];
-            const audioPath = `/sounds/${config.voice}/${num}.${extension}`;
-
-            // Small staggered delay between each number (80ms)
-            const staggerDelay = index * 80;
-
-            const timeout = setTimeout(() => {
-              // Check if a newer pattern started
-              if (isPausedRef.current || patternGenerationRef.current !== myGeneration) {
-                resolve();
-                return;
-              }
-
-              // Create a fresh audio element for each number
-              const audio = new Audio();
-              audioElements.push(audio);
-              activeAudioElementsRef.current.push(audio);
-
-              audio.src = audioPath;
-              audio.playbackRate = config.playbackSpeed;
-
-              audio.play().then(() => {
-                // Resolve when this audio finishes
-                const handleEnded = () => {
-                  audio.removeEventListener('ended', handleEnded);
-                  resolve();
-                };
-                audio.addEventListener('ended', handleEnded);
-              }).catch(() => {
-                resolve();
-              });
-            }, staggerDelay);
-            simultaneousTimeoutsRef.current.push(timeout);
-          });
-        });
-
-        // Wait for all audio to finish
-        await Promise.all(audioPromises);
-
-        // Clean up audio elements
-        audioElements.forEach(audio => {
-          audio.pause();
-          audio.src = '';
-        });
-      } else {
-        // Sequential mode with overlap (original behavior)
-        for (let i = 0; i < currentPattern.length; i++) {
-          // Check if a newer pattern started or paused
-          if (isPausedRef.current || patternGenerationRef.current !== myGeneration) break;
-
-          const num = currentPattern[i];
-          const audio = audioRef.current;
-          if (!audio) continue;
-
-          // Stop any currently playing audio
-          audio.pause();
-          audio.currentTime = 0;
-
-          const extension = VOICE_EXTENSIONS[config.voice];
-          const audioPath = `/sounds/${config.voice}/${num}.${extension}`;
-
-          // Wait for audio to be ready
-          await new Promise<void>((resolve, reject) => {
-            // Check generation at start
-            if (patternGenerationRef.current !== myGeneration) {
-              resolve();
-              return;
-            }
-            const handleCanPlay = () => {
-              audio.removeEventListener('canplaythrough', handleCanPlay);
-              audio.removeEventListener('error', handleError);
-              resolve();
-            };
-            const handleError = () => {
-              audio.removeEventListener('canplaythrough', handleCanPlay);
-              audio.removeEventListener('error', handleError);
-              reject(new Error(`Failed to load audio: ${audioPath}`));
-            };
-            audio.addEventListener('canplaythrough', handleCanPlay);
-            audio.addEventListener('error', handleError);
-            audio.src = audioPath;
-            audio.playbackRate = config.playbackSpeed;
-            audio.load();
-            setTimeout(() => {
-              audio.removeEventListener('canplaythrough', handleCanPlay);
-              audio.removeEventListener('error', handleError);
-              resolve();
-            }, 500);
-          });
-
-          // Check again after await
-          if (isPausedRef.current || patternGenerationRef.current !== myGeneration) break;
-
-          // Play the audio
-          const playPromise = audio.play();
-          playPromiseRef.current = playPromise;
-          await playPromise;
-
-          // Check again after playing
-          if (patternGenerationRef.current !== myGeneration) break;
-
-          // Wait for audio to finish (with overlap)
-          const overlapMs = config.audioOverlap;
-          if (overlapMs > 0 && i < currentPattern.length - 1) {
-            const durationMs = (audio.duration * 1000) / config.playbackSpeed;
-            const waitTime = Math.max(0, durationMs - overlapMs);
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-          } else {
-            await new Promise<void>((resolve) => {
-              const handleEnded = () => {
-                audio.removeEventListener('ended', handleEnded);
-                resolve();
-              };
-              audio.addEventListener('ended', handleEnded);
-            });
-          }
-        }
-      }
-    } catch (error) {
-      if (error instanceof Error && error.name !== "AbortError" && error.name !== "NotAllowedError") {
-        console.error("Speech error:", error);
-      }
-    }
-  }, [config.voice, config.playbackSpeed, config.audioOverlap]);
-
-  // Pause/unpause audio when isPaused changes
-  useEffect(() => {
-    if (isPaused) {
-      stopAllAudio();
-    }
-  }, [isPaused, stopAllAudio]);
-
-  // Schedule next callout - using refs to avoid stale closures
+  // Schedule next callout
   const scheduleCallout = useCallback(() => {
     if (calloutRef.current) {
       clearTimeout(calloutRef.current);
     }
 
-    // Don't schedule if paused
     if (isPausedRef.current) return;
 
     const minDelay = config.baseDelay;
@@ -469,7 +169,6 @@ export default function Home() {
     const currentSet = getCurrentPatternSet();
 
     calloutRef.current = setTimeout(() => {
-      // Check again when timeout fires in case we paused while waiting
       if (isPausedRef.current) return;
 
       setCurrentPattern((prevPattern) => {
@@ -484,12 +183,11 @@ export default function Home() {
         return randomPattern;
       });
 
-      // Schedule next callout
       scheduleCallout();
     }, delay * 1000);
-  }, [config, patternSets, speakPattern]);
+  }, [config, getCurrentPatternSet, speakPattern]);
 
-  // Resume callouts when unpausing during a round
+  // Resume callouts when unpausing
   useEffect(() => {
     if (!isPaused && phase === "round" && currentPattern !== null) {
       scheduleCallout();
@@ -501,84 +199,77 @@ export default function Home() {
     setCurrentRound(1);
     setIsPaused(false);
 
-    // Play 2 short + 1 long beep before starting
-    await playRoundStartBeeps();
+    // 3 second countdown before first round
+    setPhase("rest");
+    setTimeRemaining(3);
 
-    // Only start round timer after beeps finish
-    setPhase("round");
-    setTimeRemaining(config.minutesPerRound * 60);
+    // Play start beeps at 3 seconds (immediately)
+    playRoundStartBeeps();
 
-    const currentSet = getCurrentPatternSet();
-
-    // Initial callout after short delay
+    // Wait 3 seconds then start round
     setTimeout(() => {
+      setPhase("round");
+      setTimeRemaining(config.roundSeconds);
+      const currentSet = getCurrentPatternSet();
       const randomPattern = currentSet.patterns[Math.floor(Math.random() * currentSet.patterns.length)];
       setCurrentPattern(randomPattern);
       setFlashActive(true);
       speakPattern(randomPattern);
       setTimeout(() => setFlashActive(false), 500);
       scheduleCallout();
-    }, 500);
+    }, 3000);
   };
 
-  // Timer effect - using refs to track current values and avoid stale closures
-  const phaseRef = useRef(phase);
-  phaseRef.current = phase;
-  const isPausedRef = useRef(isPaused);
-  isPausedRef.current = isPaused;
-  const currentRoundRef = useRef(currentRound);
-  currentRoundRef.current = currentRound;
-  const endBeepsPlayedRef = useRef(false);
-  const startBeepsPlayingRef = useRef(false);
-
+  // Timer effect
   useEffect(() => {
     if (phaseRef.current === "round" || phaseRef.current === "rest") {
       timerRef.current = setInterval(() => {
         if (!isPausedRef.current) {
           setTimeRemaining((prev) => {
-            // Play 5 beeps when 5 seconds remaining in round
+            // Play end beeps when 5 seconds remaining in round
             if (phaseRef.current === "round" && prev === 5 && !endBeepsPlayedRef.current) {
               endBeepsPlayedRef.current = true;
               playRoundEndBeeps();
             }
 
+            // Play start beeps when 3 seconds remaining in rest
+            if (phaseRef.current === "rest" && prev === 3 && !startBeepsPlayingRef.current) {
+              startBeepsPlayingRef.current = true;
+              playRoundStartBeeps();
+            }
+
             if (prev <= 1) {
-              // Phase complete
               if (phaseRef.current === "round") {
-                // End of round
                 endBeepsPlayedRef.current = false;
+                stopAllAudio();
+                if (calloutRef.current) clearTimeout(calloutRef.current);
                 if (currentRoundRef.current < config.rounds) {
                   setPhase("rest");
-                  if (calloutRef.current) clearTimeout(calloutRef.current);
+                  // Reset start beeps ref when entering rest, and play immediately if rest < 3s
+                  startBeepsPlayingRef.current = false;
+                  if (config.restSeconds < 3) {
+                    startBeepsPlayingRef.current = true;
+                    playRoundStartBeeps();
+                  }
                   return config.restSeconds;
                 } else {
                   setPhase("complete");
-                  if (calloutRef.current) clearTimeout(calloutRef.current);
                   return 0;
                 }
-              } else if (!startBeepsPlayingRef.current) {
-                // End of rest - play beeps first, then start round
-                startBeepsPlayingRef.current = true;
-                (async () => {
-                  await playRoundStartBeeps();
-                  // Only start round after beeps finish
-                  startBeepsPlayingRef.current = false;
-                  setCurrentRound((r) => r + 1);
-                  setPhase("round");
-                  setTimeRemaining(config.minutesPerRound * 60);
-                  const currentSet = getCurrentPatternSet();
-                  const randomPattern = currentSet.patterns[Math.floor(Math.random() * currentSet.patterns.length)];
-                  setCurrentPattern(randomPattern);
-                  setFlashActive(true);
-                  speakPattern(randomPattern);
-                  setTimeout(() => setFlashActive(false), 500);
-                  scheduleCallout();
-                })();
-                // Return same time while waiting for beeps
-                return prev;
               } else {
-                // Still waiting for beeps to finish
-                return prev;
+                // End of rest - start round immediately (beeps already played at 3s)
+                startBeepsPlayingRef.current = false;
+                setCurrentRound((r) => r + 1);
+                setPhase("round");
+                setTimeRemaining(config.roundSeconds);
+                const currentSet = getCurrentPatternSet();
+                const randomPattern = currentSet.patterns[Math.floor(Math.random() * currentSet.patterns.length)];
+                setCurrentPattern(randomPattern);
+                setFlashActive(true);
+                speakPattern(randomPattern);
+                setTimeout(() => setFlashActive(false), 500);
+                scheduleCallout();
+                return config.roundSeconds;
               }
             }
             return prev - 1;
@@ -590,9 +281,9 @@ export default function Home() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [phase, config, patternSets, scheduleCallout, speakPattern, playRoundStartBeeps, playRoundEndBeeps]);
+  }, [phase, config, playRoundStartBeeps, playRoundEndBeeps, getCurrentPatternSet, speakPattern, scheduleCallout]);
 
-  // Reset to setup
+  // Reset training
   const resetTraining = () => {
     if (timerRef.current) clearInterval(timerRef.current);
     if (calloutRef.current) clearTimeout(calloutRef.current);
@@ -616,12 +307,12 @@ export default function Home() {
     setIsPaused((prev) => !prev);
   };
 
-  // Update config helpers
-  const updateConfig = (key: keyof TrainingConfig, value: string | number) => {
+  // Update config
+  const updateConfig = (key: keyof typeof config, value: string | number) => {
     setConfig((prev) => ({ ...prev, [key]: value }));
   };
 
-  // Pattern Set Management Functions
+  // Pattern set management
   const createNewSet = () => {
     if (newSetName.trim()) {
       const newSet: PatternSet = {
@@ -637,12 +328,11 @@ export default function Home() {
 
   const deleteSet = (setId: string) => {
     const setToDelete = patternSets.find(s => s.id === setId);
-    if (setToDelete?.isDefault) return; // Can't delete default sets
+    if (setToDelete?.isDefault) return;
 
     const newSets = patternSets.filter(s => s.id !== setId);
     setPatternSets(newSets);
 
-    // If we deleted the selected set, select the first available
     if (config.selectedPatternSetId === setId && newSets.length > 0) {
       updateConfig("selectedPatternSetId", newSets[0].id);
     }
@@ -662,7 +352,6 @@ export default function Home() {
     if (nums.length > 0) {
       setPatternSets(sets => sets.map(s => {
         if (s.id === setId) {
-          // Check if pattern already exists
           const patternExists = s.patterns.some(
             p => JSON.stringify(p) === JSON.stringify(nums)
           );
@@ -686,43 +375,6 @@ export default function Home() {
     }));
   };
 
-  const formatPattern = (pattern: Pattern) => pattern.join(" ");
-
-  // Encode a pattern set to base64 for sharing
-  const encodePatternSet = (set: PatternSet): string => {
-    const data = {
-      n: set.name,
-      p: set.patterns,
-    };
-    const json = JSON.stringify(data);
-    // Use btoa for base64 encoding (works in browsers)
-    if (typeof window !== "undefined") {
-      return btoa(json);
-    }
-    return "";
-  };
-
-  // Decode a base64 string to a pattern set
-  const decodePatternSet = (base64: string): PatternSet | null => {
-    try {
-      if (typeof window !== "undefined") {
-        const json = atob(base64);
-        const data = JSON.parse(json);
-        if (data.n && Array.isArray(data.p)) {
-          return {
-            id: `imported-${Date.now()}`,
-            name: data.n,
-            patterns: data.p,
-          };
-        }
-      }
-    } catch {
-      // Invalid base64 or malformed data
-    }
-    return null;
-  };
-
-  // Share a pattern set - generate URL and show modal
   const sharePatternSet = (set: PatternSet) => {
     const encoded = encodePatternSet(set);
     if (encoded && typeof window !== "undefined") {
@@ -733,37 +385,21 @@ export default function Home() {
     }
   };
 
-  // Copy share URL to clipboard
   const copyShareUrl = async () => {
     try {
       await navigator.clipboard.writeText(shareUrl);
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
     } catch {
-      // Fallback: select text for manual copy
+      // Fallback
     }
   };
 
-  // Import a shared pattern set
   const importSharedSet = (set: PatternSet) => {
-    // Check if a set with this name already exists
-    const existingIndex = patternSets.findIndex(s => s.name === set.name);
-    let newSet = { ...set };
-
-    if (existingIndex >= 0) {
-      // Append number to make name unique
-      const baseName = set.name;
-      let counter = 1;
-      while (patternSets.some(s => s.name === `${baseName} (${counter})`)) {
-        counter++;
-      }
-      newSet.name = `${baseName} (${counter})`;
-    }
-
+    const newSet = importPatternSet(set, patternSets);
     setPatternSets([...patternSets, newSet]);
     setSharedSetPreview(null);
 
-    // Update URL to remove import param without reloading
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       url.searchParams.delete("import");
@@ -771,7 +407,6 @@ export default function Home() {
     }
   };
 
-  // Cancel import preview
   const cancelImport = () => {
     setSharedSetPreview(null);
     if (typeof window !== "undefined") {
@@ -781,102 +416,17 @@ export default function Home() {
     }
   };
 
-  // Generate a random pattern of specified length
-  const generateRandomPattern = (length: number): Pattern => {
-    const pattern: Pattern = [];
-    for (let i = 0; i < length; i++) {
-      // Generate numbers 1-4 for boxing combinations
-      pattern.push(Math.floor(Math.random() * 4) + 1);
-    }
-    return pattern;
-  };
-
-  // Generate a random pattern set
-  const generateRandomPatternSet = () => {
-    const setSize = Math.floor(Math.random() * 6) + 3; // 3-8 patterns
-    const patterns: Pattern[] = [];
-
-    for (let i = 0; i < setSize; i++) {
-      // Pattern length: 50% single, 30% double, 15% triple, 5% quadruple
-      const rand = Math.random();
-      let length: number;
-      if (rand < 0.5) length = 1;
-      else if (rand < 0.8) length = 2;
-      else if (rand < 0.95) length = 3;
-      else length = 4;
-
-      const newPattern = generateRandomPattern(length);
-      // Avoid duplicates
-      const isDuplicate = patterns.some(p => JSON.stringify(p) === JSON.stringify(newPattern));
-      if (!isDuplicate) {
-        patterns.push(newPattern);
-      } else {
-        // Try once more with different length
-        const altLength = length === 1 ? 2 : 1;
-        const altPattern = generateRandomPattern(altLength);
-        const isAltDuplicate = patterns.some(p => JSON.stringify(p) === JSON.stringify(altPattern));
-        if (!isAltDuplicate) {
-          patterns.push(altPattern);
-        }
-      }
-    }
-
-    const newSet: PatternSet = {
-      id: `random-${Date.now()}`,
-      name: `Random Set ${patternSets.filter(s => s.name.startsWith('Random Set')).length + 1}`,
-      patterns,
-    };
-
-    setPatternSets([...patternSets, newSet]);
-  };
-
-  // Generate a set with specific constraints
-  const generateCustomRandomSet = (options: { minPatterns?: number; maxPatterns?: number; allowSingles?: boolean; maxLength?: number }) => {
-    const minPatterns = options.minPatterns ?? 3;
-    const maxPatterns = options.maxPatterns ?? 8;
-    const allowSingles = options.allowSingles ?? true;
-    const maxLength = options.maxLength ?? 4;
-
-    const setSize = Math.floor(Math.random() * (maxPatterns - minPatterns + 1)) + minPatterns;
-    const patterns: Pattern[] = [];
-
-    for (let i = 0; i < setSize; i++) {
-      // Determine pattern length
-      const minLen = allowSingles ? 1 : 2;
-      const length = Math.floor(Math.random() * (maxLength - minLen + 1)) + minLen;
-
-      const newPattern = generateRandomPattern(length);
-      const isDuplicate = patterns.some(p => JSON.stringify(p) === JSON.stringify(newPattern));
-      if (!isDuplicate) {
-        patterns.push(newPattern);
-      }
-    }
-
-    const newSet: PatternSet = {
-      id: `custom-random-${Date.now()}`,
-      name: `Custom Random ${patternSets.filter(s => s.name.startsWith('Custom Random')).length + 1}`,
-      patterns,
-    };
-
-    setPatternSets([...patternSets, newSet]);
-  };
-
-  // Pattern Sets Management View
+  // Views
   if (phase === "setup" && setupView === "pattern-sets") {
     return (
       <main className="min-h-screen bg-void text-canvas p-6 md:p-12">
         <div className="max-w-4xl mx-auto">
-          {/* Header */}
           <div className="text-center mb-8">
             <h1 className="text-5xl md:text-7xl tracking-wider blood-accent" style={{ fontFamily: 'var(--font-bebas)' }}>
               PATTERN SETS
             </h1>
-            <p className="text-rope-gray text-lg mt-2 tracking-widest uppercase" style={{ fontFamily: 'var(--font-oswald)' }}>
-              Manage Your Training Patterns
-            </p>
           </div>
 
-          {/* Back Button */}
           <button
             onClick={() => setSetupView("main")}
             className="mb-6 px-4 py-2 border border-rope-gray text-rope-gray rounded hover:border-blood hover:text-blood transition-colors"
@@ -896,45 +446,41 @@ export default function Home() {
                 value={newSetName}
                 onChange={(e) => setNewSetName(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && createNewSet()}
-                placeholder="Set name (e.g., My Custom Set)"
-                className="flex-1 bg-void border border-rope-gray/50 rounded px-3 py-2 text-canvas placeholder:text-rope-gray/50"
+                placeholder="Set name"
+                className="flex-1 bg-void border border-rope-gray/50 rounded px-3 py-2 text-canvas"
                 style={{ fontFamily: 'var(--font-bebas)', fontSize: '1.25rem' }}
               />
               <button
                 onClick={createNewSet}
                 disabled={!newSetName.trim()}
-                className="px-6 py-2 bg-blood text-canvas rounded hover:bg-glove-red transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-6 py-2 bg-blood text-canvas rounded hover:bg-glove-red transition-colors disabled:opacity-50"
                 style={{ fontFamily: 'var(--font-bebas)', fontSize: '1.25rem' }}
               >
                 CREATE
               </button>
             </div>
 
-            {/* Random Pattern Generator */}
             <div className="border-t border-rope-gray/30 pt-4">
               <h3 className="text-lg uppercase tracking-widest text-rope-gray mb-3" style={{ fontFamily: 'var(--font-oswald)' }}>
                 Generate Random Set
               </h3>
-              <p className="text-sm text-rope-gray/70 mb-3" style={{ fontFamily: 'var(--font-oswald)' }}>
-                Creates a set with 3-8 random boxing combinations (1-4 punches)
-              </p>
               <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={generateRandomPatternSet}
+                  onClick={() => setPatternSets([...patternSets, generateRandomPatternSet(patternSets)])}
                   className="px-4 py-2 bg-concrete text-canvas rounded hover:bg-rope-gray transition-colors"
                   style={{ fontFamily: 'var(--font-oswald)' }}
                 >
                   🎲 FULLY RANDOM
                 </button>
                 <button
-                  onClick={() => generateCustomRandomSet({ minPatterns: 4, maxPatterns: 6, allowSingles: true, maxLength: 2 })}
+                  onClick={() => setPatternSets([...patternSets, generateCustomRandomSet(patternSets, { minPatterns: 4, maxPatterns: 6, allowSingles: true, maxLength: 2 })])}
                   className="px-4 py-2 bg-concrete text-canvas rounded hover:bg-rope-gray transition-colors"
                   style={{ fontFamily: 'var(--font-oswald)' }}
                 >
                   🥊 SINGLES & DOUBLES
                 </button>
                 <button
-                  onClick={() => generateCustomRandomSet({ minPatterns: 3, maxPatterns: 5, allowSingles: false, maxLength: 4 })}
+                  onClick={() => setPatternSets([...patternSets, generateCustomRandomSet(patternSets, { minPatterns: 3, maxPatterns: 5, allowSingles: false, maxLength: 4 })])}
                   className="px-4 py-2 bg-concrete text-canvas rounded hover:bg-rope-gray transition-colors"
                   style={{ fontFamily: 'var(--font-oswald)' }}
                 >
@@ -951,30 +497,18 @@ export default function Home() {
                 <h2 className="text-3xl mb-4 text-ring-gold" style={{ fontFamily: 'var(--font-bebas)' }}>
                   IMPORT PATTERN SET
                 </h2>
-                <p className="text-rope-gray mb-4" style={{ fontFamily: 'var(--font-oswald)' }}>
-                  Someone has shared a pattern set with you:
-                </p>
-
                 <div className="bg-void rounded-lg p-4 mb-6 border border-rope-gray/30">
                   <h3 className="text-xl mb-2" style={{ fontFamily: 'var(--font-bebas)' }}>
                     {sharedSetPreview.name}
                   </h3>
                   <div className="flex flex-wrap gap-2">
                     {sharedSetPreview.patterns.map((pattern, idx) => (
-                      <span
-                        key={idx}
-                        className="text-sm bg-concrete border border-rope-gray/50 rounded px-2 py-1"
-                        style={{ fontFamily: 'var(--font-bebas)' }}
-                      >
+                      <span key={idx} className="text-sm bg-concrete border border-rope-gray/50 rounded px-2 py-1" style={{ fontFamily: 'var(--font-bebas)' }}>
                         {formatPattern(pattern)}
                       </span>
                     ))}
                   </div>
-                  <p className="text-xs text-rope-gray mt-2">
-                    {sharedSetPreview.patterns.length} patterns
-                  </p>
                 </div>
-
                 <div className="flex gap-3">
                   <button
                     onClick={() => importSharedSet(sharedSetPreview)}
@@ -1002,23 +536,15 @@ export default function Home() {
                 <h2 className="text-3xl mb-4 text-ring-gold" style={{ fontFamily: 'var(--font-bebas)' }}>
                   SHARE PATTERN SET
                 </h2>
-                <p className="text-rope-gray mb-4" style={{ fontFamily: 'var(--font-oswald)' }}>
-                  Copy this link to share your pattern set with others:
-                </p>
-
                 <div className="bg-void rounded-lg p-4 mb-4 border border-rope-gray/30">
                   <code className="text-sm break-all text-canvas" style={{ fontFamily: 'monospace' }}>
                     {shareUrl}
                   </code>
                 </div>
-
                 <div className="flex gap-3">
                   <button
                     onClick={copyShareUrl}
-                    className={`flex-1 px-4 py-3 rounded transition-colors ${copySuccess
-                      ? 'bg-green-600 text-canvas'
-                      : 'bg-ring-gold text-void hover:bg-ring-gold/80'
-                      }`}
+                    className={`flex-1 px-4 py-3 rounded transition-colors ${copySuccess ? 'bg-green-600 text-canvas' : 'bg-ring-gold text-void hover:bg-ring-gold/80'}`}
                     style={{ fontFamily: 'var(--font-oswald)' }}
                   >
                     {copySuccess ? 'COPIED!' : 'COPY LINK'}
@@ -1038,34 +564,17 @@ export default function Home() {
           {/* Pattern Sets List */}
           <div className="grid gap-4">
             {patternSets.map((set) => (
-              <div
-                key={set.id}
-                className={`bg-concrete/30 rounded-lg p-6 border ${config.selectedPatternSetId === set.id ? 'border-blood' : 'border-rope-gray/30'}`}
-              >
-
+              <div key={set.id} className={`bg-concrete/30 rounded-lg p-6 border ${config.selectedPatternSetId === set.id ? 'border-blood' : 'border-rope-gray/30'}`}>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <h3 className="text-2xl" style={{ fontFamily: 'var(--font-bebas)' }}>
-                      {set.name}
-                    </h3>
-                    {set.isDefault && (
-                      <span className="text-xs bg-rope-gray/30 text-rope-gray px-2 py-1 rounded" style={{ fontFamily: 'var(--font-oswald)' }}>
-                        DEFAULT
-                      </span>
-                    )}
-                    {config.selectedPatternSetId === set.id && (
-                      <span className="text-xs bg-blood/30 text-blood px-2 py-1 rounded" style={{ fontFamily: 'var(--font-oswald)' }}>
-                        SELECTED
-                      </span>
-                    )}
+                    <h3 className="text-2xl" style={{ fontFamily: 'var(--font-bebas)' }}>{set.name}</h3>
+                    {set.isDefault && <span className="text-xs bg-rope-gray/30 text-rope-gray px-2 py-1 rounded">DEFAULT</span>}
+                    {config.selectedPatternSetId === set.id && <span className="text-xs bg-blood/30 text-blood px-2 py-1 rounded">SELECTED</span>}
                   </div>
                   <div className="flex gap-2 flex-wrap">
                     <button
                       onClick={() => updateConfig("selectedPatternSetId", set.id)}
-                      className={`px-4 py-2 rounded transition-colors ${config.selectedPatternSetId === set.id
-                        ? 'bg-blood text-canvas'
-                        : 'border border-blood text-blood hover:bg-blood hover:text-canvas'
-                        }`}
+                      className={`px-4 py-2 rounded transition-colors ${config.selectedPatternSetId === set.id ? 'bg-blood text-canvas' : 'border border-blood text-blood hover:bg-blood hover:text-canvas'}`}
                       style={{ fontFamily: 'var(--font-oswald)' }}
                     >
                       {config.selectedPatternSetId === set.id ? 'SELECTED' : 'USE'}
@@ -1096,29 +605,17 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Patterns Display */}
                 <div className="flex flex-wrap gap-2 mb-4">
                   {set.patterns.map((pattern, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center gap-2 bg-void border border-rope-gray/50 rounded px-3 py-2"
-                    >
-                      <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '1.25rem' }}>
-                        {formatPattern(pattern)}
-                      </span>
+                    <div key={idx} className="flex items-center gap-2 bg-void border border-rope-gray/50 rounded px-3 py-2">
+                      <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '1.25rem' }}>{formatPattern(pattern)}</span>
                       {editingSet?.id === set.id && (
-                        <button
-                          onClick={() => removePatternFromSet(set.id, pattern)}
-                          className="text-rope-gray hover:text-blood transition-colors"
-                        >
-                          ×
-                        </button>
+                        <button onClick={() => removePatternFromSet(set.id, pattern)} className="text-rope-gray hover:text-blood">×</button>
                       )}
                     </div>
                   ))}
                 </div>
 
-                {/* Add Pattern Input (when editing) */}
                 {editingSet?.id === set.id && (
                   <div className="flex gap-2">
                     <input
@@ -1127,7 +624,7 @@ export default function Home() {
                       onChange={(e) => setNewPatternInput(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && addPatternToSet(set.id)}
                       placeholder="e.g., 1 1 2"
-                      className="flex-1 bg-void border border-rope-gray/50 rounded px-3 py-2 text-canvas placeholder:text-rope-gray/50"
+                      className="flex-1 bg-void border border-rope-gray/50 rounded px-3 py-2 text-canvas"
                       style={{ fontFamily: 'var(--font-bebas)', fontSize: '1.25rem' }}
                     />
                     <button
@@ -1135,7 +632,7 @@ export default function Home() {
                       className="px-4 py-2 bg-blood text-canvas rounded hover:bg-glove-red transition-colors"
                       style={{ fontFamily: 'var(--font-bebas)', fontSize: '1.25rem' }}
                     >
-                      ADD PATTERN
+                      ADD
                     </button>
                   </div>
                 )}
@@ -1147,16 +644,13 @@ export default function Home() {
     );
   }
 
-  // Main Setup View
   if (phase === "setup") {
     const currentSet = getCurrentPatternSet();
 
     return (
       <main className="min-h-screen bg-void text-canvas p-6 md:p-12">
         <div className="max-w-2xl mx-auto">
-          {/* Header */}
           <div className="text-center mb-12">
-            {/* Logo Image */}
             <div className="mb-6">
               <img
                 src="/bagresponse-logo.png"
@@ -1167,12 +661,8 @@ export default function Home() {
             <h1 className="text-7xl md:text-9xl tracking-wider blood-accent" style={{ fontFamily: 'var(--font-bebas)' }}>
               BAGRESPONSE
             </h1>
-            <p className="text-rope-gray text-lg mt-4 tracking-widest uppercase" style={{ fontFamily: 'var(--font-oswald)' }}>
-              Precision Training System
-            </p>
           </div>
 
-          {/* Configuration Form */}
           <div className="bg-concrete/30 rounded-lg p-8 border border-rope-gray/30">
             {/* Rounds */}
             <div className="mb-8">
@@ -1188,29 +678,30 @@ export default function Home() {
               />
             </div>
 
-            {/* Minutes per Round */}
+            {/* Round Time */}
             <div className="mb-8">
               <label className="block text-sm uppercase tracking-widest text-rope-gray mb-3" style={{ fontFamily: 'var(--font-oswald)' }}>
-                Minutes per Round:{" "}
-                <span className="text-blood">{config.minutesPerRound}</span>
+                Round Time: <span className="text-blood">{Math.floor(config.roundSeconds / 60)}:{(config.roundSeconds % 60).toString().padStart(2, '0')}</span>
               </label>
               <input
                 type="range"
-                min="1"
-                max="5"
-                step="0.5"
-                value={config.minutesPerRound}
-                onChange={(e) =>
-                  updateConfig("minutesPerRound", parseFloat(e.target.value))
-                }
+                min={ROUND_TIME_MIN}
+                max={ROUND_TIME_MAX}
+                step={ROUND_TIME_STEP}
+                value={config.roundSeconds}
+                onChange={(e) => updateConfig("roundSeconds", parseInt(e.target.value))}
               />
+              <div className="flex justify-between text-xs text-rope-gray mt-1">
+                <span>0:30</span>
+                <span>2:30</span>
+                <span>5:00</span>
+              </div>
             </div>
 
             {/* Rest Period */}
             <div className="mb-8">
               <label className="block text-sm uppercase tracking-widest text-rope-gray mb-3" style={{ fontFamily: 'var(--font-oswald)' }}>
-                Rest Between Rounds:{" "}
-                <span className="text-blood">{config.restSeconds}s</span>
+                Rest Between Rounds: <span className="text-blood">{config.restSeconds}s</span>
               </label>
               <input
                 type="range"
@@ -1218,9 +709,7 @@ export default function Home() {
                 max="120"
                 step="5"
                 value={config.restSeconds}
-                onChange={(e) =>
-                  updateConfig("restSeconds", parseInt(e.target.value))
-                }
+                onChange={(e) => updateConfig("restSeconds", parseInt(e.target.value))}
               />
             </div>
 
@@ -1240,22 +729,8 @@ export default function Home() {
               </div>
               <div className="bg-void border border-rope-gray/50 rounded px-4 py-3 mb-3">
                 <div className="flex items-center justify-between">
-                  <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '1.5rem' }}>
-                    {currentSet.name}
-                  </span>
-                  <span className="text-sm text-rope-gray" style={{ fontFamily: 'var(--font-oswald)' }}>
-                    {currentSet.patterns.length} patterns
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {currentSet.patterns.slice(0, 5).map((p, i) => (
-                    <span key={i} className="text-xs text-rope-gray bg-concrete/50 px-2 py-1 rounded">
-                      {formatPattern(p)}
-                    </span>
-                  ))}
-                  {currentSet.patterns.length > 5 && (
-                    <span className="text-xs text-rope-gray">+{currentSet.patterns.length - 5} more</span>
-                  )}
+                  <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '1.5rem' }}>{currentSet.name}</span>
+                  <span className="text-sm text-rope-gray">{currentSet.patterns.length} patterns</span>
                 </div>
               </div>
               <select
@@ -1300,20 +775,12 @@ export default function Home() {
                 value={config.playbackSpeed}
                 onChange={(e) => updateConfig("playbackSpeed", parseFloat(e.target.value))}
               />
-              <div className="flex justify-between text-xs text-rope-gray mt-1">
-                <span>Slow (0.5x)</span>
-                <span>Normal (1.0x)</span>
-                <span>Fast (2.0x)</span>
-              </div>
             </div>
 
             {/* Audio Overlap */}
             <div className="mb-8">
               <label className="block text-sm uppercase tracking-widest text-rope-gray mb-3" style={{ fontFamily: 'var(--font-oswald)' }}>
                 Audio Overlap: <span className="text-blood">{config.audioOverlap}ms</span>
-                <span className="text-rope-gray/70 text-xs ml-2">
-                  ({config.audioOverlap >= 1000 ? '≥1000ms = simultaneous playback!' : 'negative delay between numbers'})
-                </span>
               </label>
               <input
                 type="range"
@@ -1323,54 +790,30 @@ export default function Home() {
                 value={config.audioOverlap}
                 onChange={(e) => updateConfig("audioOverlap", parseInt(e.target.value))}
               />
-              <div className="flex justify-between text-xs text-rope-gray mt-1">
-                <span>Sequential</span>
-                <span>Overlap</span>
-                <span>Simultaneous!</span>
-              </div>
             </div>
 
             {/* Callout Delay */}
             <div className="mb-8">
               <label className="block text-sm uppercase tracking-widest text-rope-gray mb-3" style={{ fontFamily: 'var(--font-oswald)' }}>
-                Callout Delay: <span className="text-blood">{config.baseDelay}s</span> to{" "}
-                <span className="text-blood">{config.baseDelay + config.delayVariance}s</span>
-                <span className="text-rope-gray/70 text-xs ml-2">
-                  (minimum {config.baseDelay}s, up to +{config.delayVariance}s variance)
-                </span>
+                Callout Delay: <span className="text-blood">{config.baseDelay}s</span> to <span className="text-blood">{config.baseDelay + config.delayVariance}s</span>
               </label>
-
-              {/* Base Delay Slider */}
-              <div className="mb-4">
-                <div className="flex justify-between text-xs text-rope-gray mb-1">
-                  <span>Minimum Delay</span>
-                  <span className="text-blood">{config.baseDelay}s</span>
-                </div>
-                <input
-                  type="range"
-                  min="1"
-                  max="8"
-                  step="1"
-                  value={config.baseDelay}
-                  onChange={(e) => updateConfig("baseDelay", parseInt(e.target.value))}
-                />
-              </div>
-
-              {/* Delay Variance Slider */}
-              <div>
-                <div className="flex justify-between text-xs text-rope-gray mb-1">
-                  <span>Variance (added to minimum)</span>
-                  <span className="text-blood">+{config.delayVariance}s</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="10"
-                  step="1"
-                  value={config.delayVariance}
-                  onChange={(e) => updateConfig("delayVariance", parseInt(e.target.value))}
-                />
-              </div>
+              <input
+                type="range"
+                min="1"
+                max="8"
+                step="1"
+                value={config.baseDelay}
+                onChange={(e) => updateConfig("baseDelay", parseInt(e.target.value))}
+                className="mb-4"
+              />
+              <input
+                type="range"
+                min="0"
+                max="10"
+                step="1"
+                value={config.delayVariance}
+                onChange={(e) => updateConfig("delayVariance", parseInt(e.target.value))}
+              />
             </div>
 
             {/* Start Button */}
@@ -1384,49 +827,33 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Import Preview Modal (also shown on main view) */}
+        {/* Import Preview Modal */}
         {sharedSetPreview && (
           <div className="fixed inset-0 bg-void/90 flex items-center justify-center p-4 z-50">
             <div className="bg-concrete rounded-lg p-8 max-w-md w-full border border-ring-gold">
               <h2 className="text-3xl mb-4 text-ring-gold" style={{ fontFamily: 'var(--font-bebas)' }}>
                 IMPORT PATTERN SET
               </h2>
-              <p className="text-rope-gray mb-4" style={{ fontFamily: 'var(--font-oswald)' }}>
-                Someone has shared a pattern set with you:
-              </p>
-
               <div className="bg-void rounded-lg p-4 mb-6 border border-rope-gray/30">
-                <h3 className="text-xl mb-2" style={{ fontFamily: 'var(--font-bebas)' }}>
-                  {sharedSetPreview.name}
-                </h3>
+                <h3 className="text-xl mb-2" style={{ fontFamily: 'var(--font-bebas)' }}>{sharedSetPreview.name}</h3>
                 <div className="flex flex-wrap gap-2">
                   {sharedSetPreview.patterns.map((pattern, idx) => (
-                    <span
-                      key={idx}
-                      className="text-sm bg-concrete border border-rope-gray/50 rounded px-2 py-1"
-                      style={{ fontFamily: 'var(--font-bebas)' }}
-                    >
+                    <span key={idx} className="text-sm bg-concrete border border-rope-gray/50 rounded px-2 py-1" style={{ fontFamily: 'var(--font-bebas)' }}>
                       {formatPattern(pattern)}
                     </span>
                   ))}
                 </div>
-                <p className="text-xs text-rope-gray mt-2">
-                  {sharedSetPreview.patterns.length} patterns
-                </p>
               </div>
-
               <div className="flex gap-3">
                 <button
                   onClick={() => importSharedSet(sharedSetPreview)}
                   className="flex-1 px-4 py-3 bg-ring-gold text-void rounded hover:bg-ring-gold/80 transition-colors"
-                  style={{ fontFamily: 'var(--font-oswald)' }}
                 >
                   IMPORT SET
                 </button>
                 <button
                   onClick={cancelImport}
                   className="flex-1 px-4 py-3 border border-rope-gray text-rope-gray rounded hover:border-blood hover:text-blood transition-colors"
-                  style={{ fontFamily: 'var(--font-oswald)' }}
                 >
                   CANCEL
                 </button>
@@ -1438,7 +865,6 @@ export default function Home() {
     );
   }
 
-  // Training complete view
   if (phase === "complete") {
     return (
       <main className="min-h-screen bg-void text-canvas flex items-center justify-center p-6">
@@ -1463,21 +889,10 @@ export default function Home() {
 
   // Active training view
   return (
-    <main
-      className={`h-screen overflow-hidden ${phase === "rest" ? "rest-period" : "bg-void"
-        } text-canvas flex flex-col items-center justify-center p-4 relative ${flashActive ? "callout-flash" : ""
-        }`}
-    >
+    <main className={`h-screen overflow-hidden ${phase === "rest" ? "rest-period" : "bg-void"} text-canvas flex flex-col items-center justify-center p-4 relative ${flashActive ? "callout-flash" : ""}`}>
       {/* Background Logo */}
-      <div
-        className="absolute inset-0 flex items-center justify-center pointer-events-none z-0"
-        style={{ opacity: 0.08 }}
-      >
-        <img
-          src="/bagresponse-logo.png"
-          alt=""
-          className="w-[80vw] h-[80vw] max-w-[600px] max-h-[600px] object-contain"
-        />
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0" style={{ opacity: 0.08 }}>
+        <img src="/bagresponse-logo.png" alt="" className="w-[80vw] h-[80vw] max-w-[600px] max-h-[600px] object-contain" />
       </div>
 
       {/* Round Indicators */}
@@ -1485,13 +900,7 @@ export default function Home() {
         {Array.from({ length: config.rounds }).map((_, i) => (
           <div
             key={i}
-            className={`w-2 h-2 rounded-full transition-all duration-300 ${i < currentRound - 1
-              ? "round-complete"
-              : i === currentRound - 1
-                ? phase === "round"
-                  ? "round-active animate-pulse"
-                  : "round-complete"
-                : "round-pending"
+            className={`w-2 h-2 rounded-full transition-all duration-300 ${i < currentRound - 1 ? "round-complete" : i === currentRound - 1 ? (phase === "round" ? "round-active animate-pulse" : "round-complete") : "round-pending"
               }`}
           />
         ))}
@@ -1506,11 +915,7 @@ export default function Home() {
 
       {/* Timer */}
       <div className="text-center mb-8 z-10 relative">
-        <div
-          className={`text-[8rem] md:text-[10rem] leading-none ${phase === "round" ? "timer-active text-canvas" : "text-ring-gold"
-            }`}
-          style={{ fontFamily: 'var(--font-bebas)' }}
-        >
+        <div className={`text-[8rem] md:text-[10rem] leading-none ${phase === "round" ? "timer-active text-canvas" : "text-ring-gold"}`} style={{ fontFamily: 'var(--font-bebas)' }}>
           {formatTime(timeRemaining)}
         </div>
       </div>
@@ -1521,11 +926,7 @@ export default function Home() {
           <p className="text-rope-gray uppercase tracking-widest text-sm mb-2" style={{ fontFamily: 'var(--font-oswald)' }}>
             Current Pattern
           </p>
-          <div
-            className={`text-[6rem] md:text-[8rem] leading-none text-blood transition-all duration-200 ${flashActive ? "scale-110" : "scale-100"
-              }`}
-            style={{ fontFamily: 'var(--font-bebas)' }}
-          >
+          <div className={`text-[6rem] md:text-[8rem] leading-none text-blood transition-all duration-200 ${flashActive ? "scale-110" : "scale-100"}`} style={{ fontFamily: 'var(--font-bebas)' }}>
             {currentPattern ? formatPattern(currentPattern) : "—"}
           </div>
         </div>
