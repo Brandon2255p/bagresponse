@@ -21,7 +21,24 @@ interface TrainingConfig {
   baseDelay: number;
   delayVariance: number;
   playbackSpeed: number;
+  voice: VoiceOption;
 }
+
+// Voice options for callouts
+type VoiceOption = "man_1" | "man_2" | "woman_1";
+
+const VOICE_OPTIONS: { value: VoiceOption; label: string }[] = [
+  { value: "man_1", label: "Male Voice 1" },
+  { value: "man_2", label: "Male Voice 2" },
+  { value: "woman_1", label: "Female Voice 1" },
+];
+
+// File extension for each voice
+const VOICE_EXTENSIONS: Record<VoiceOption, string> = {
+  man_1: "wav",
+  man_2: "mp3",
+  woman_1: "mp3",
+};
 
 type Phase = "setup" | "round" | "rest" | "complete";
 type SetupView = "main" | "pattern-sets";
@@ -71,6 +88,7 @@ export default function Home() {
     baseDelay: 3,
     delayVariance: 2,
     playbackSpeed: 1.0,
+    voice: "man_1",
   });
   const [configLoaded, setConfigLoaded] = useState(false);
 
@@ -184,8 +202,9 @@ export default function Home() {
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
 
-        // Play from local audio file
-        audioRef.current.src = `/sounds/${num}.wav`;
+        // Play from local audio file using selected voice
+        const extension = VOICE_EXTENSIONS[config.voice];
+        audioRef.current.src = `/sounds/${config.voice}/${num}.${extension}`;
         audioRef.current.playbackRate = config.playbackSpeed;
         const playPromise = audioRef.current.play();
         playPromiseRef.current = playPromise;
@@ -893,6 +912,14 @@ export default function Home() {
         <div className="max-w-2xl mx-auto">
           {/* Header */}
           <div className="text-center mb-12">
+            {/* Logo Image */}
+            <div className="mb-6">
+              <img
+                src="/bagresponse-logo.png"
+                alt="BAGRESPONSE"
+                className="w-48 h-48 md:w-64 md:h-64 mx-auto rounded-2xl shadow-2xl border-2 border-ring-gold/30"
+              />
+            </div>
             <h1 className="text-7xl md:text-9xl tracking-wider blood-accent" style={{ fontFamily: 'var(--font-bebas)' }}>
               BAGRESPONSE
             </h1>
@@ -995,6 +1022,23 @@ export default function Home() {
               >
                 {patternSets.map(set => (
                   <option key={set.id} value={set.id}>{set.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Voice Selection */}
+            <div className="mb-8">
+              <label className="block text-sm uppercase tracking-widest text-rope-gray mb-3" style={{ fontFamily: 'var(--font-oswald)' }}>
+                Callout Voice: <span className="text-blood">{VOICE_OPTIONS.find(v => v.value === config.voice)?.label}</span>
+              </label>
+              <select
+                value={config.voice}
+                onChange={(e) => updateConfig("voice", e.target.value as VoiceOption)}
+                className="w-full bg-void border border-rope-gray/50 rounded px-3 py-2 text-canvas"
+                style={{ fontFamily: 'var(--font-oswald)' }}
+              >
+                {VOICE_OPTIONS.map(voice => (
+                  <option key={voice.value} value={voice.value}>{voice.label}</option>
                 ))}
               </select>
             </div>
@@ -1157,8 +1201,20 @@ export default function Home() {
         } text-canvas flex flex-col items-center justify-center p-4 relative ${flashActive ? "callout-flash" : ""
         }`}
     >
+      {/* Background Logo */}
+      <div
+        className="absolute inset-0 flex items-center justify-center pointer-events-none z-0"
+        style={{ opacity: 0.08 }}
+      >
+        <img
+          src="/bagresponse-logo.png"
+          alt=""
+          className="w-[80vw] h-[80vw] max-w-[600px] max-h-[600px] object-contain"
+        />
+      </div>
+
       {/* Round Indicators */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 flex gap-1 flex-wrap justify-center max-w-full px-4">
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 flex gap-1 flex-wrap justify-center max-w-full px-4 z-10">
         {Array.from({ length: config.rounds }).map((_, i) => (
           <div
             key={i}
@@ -1175,14 +1231,14 @@ export default function Home() {
       </div>
 
       {/* Round Counter */}
-      <div className="text-center mb-4">
+      <div className="text-center mb-4 z-10 relative">
         <p className="text-rope-gray uppercase tracking-widest text-xl md:text-2xl" style={{ fontFamily: 'var(--font-oswald)' }}>
           {phase === "rest" ? "REST PERIOD" : `ROUND ${currentRound} OF ${config.rounds}`}
         </p>
       </div>
 
       {/* Timer */}
-      <div className="text-center mb-8">
+      <div className="text-center mb-8 z-10 relative">
         <div
           className={`text-[8rem] md:text-[10rem] leading-none ${phase === "round" ? "timer-active text-canvas" : "text-ring-gold"
             }`}
@@ -1194,7 +1250,7 @@ export default function Home() {
 
       {/* Current Pattern */}
       {phase === "round" && (
-        <div className="text-center mb-8 ring-rope py-6 px-12">
+        <div className="text-center mb-8 ring-rope py-6 px-12 z-10 relative">
           <p className="text-rope-gray uppercase tracking-widest text-sm mb-2" style={{ fontFamily: 'var(--font-oswald)' }}>
             Current Pattern
           </p>
@@ -1209,7 +1265,7 @@ export default function Home() {
       )}
 
       {/* Playback Speed Control */}
-      <div className="mb-6 w-full max-w-xs">
+      <div className="mb-6 w-full max-w-xs z-10 relative">
         <label className="block text-xs uppercase tracking-widest text-rope-gray mb-1 text-center" style={{ fontFamily: 'var(--font-oswald)' }}>
           Playback Speed: <span className="text-blood">{config.playbackSpeed.toFixed(1)}x</span>
         </label>
@@ -1225,7 +1281,7 @@ export default function Home() {
       </div>
 
       {/* Controls */}
-      <div className="flex gap-4">
+      <div className="flex gap-4 z-10 relative">
         <button
           onClick={togglePause}
           className="px-8 py-3 bg-concrete text-canvas text-lg uppercase tracking-widest rounded hover:bg-rope-gray transition-colors"
