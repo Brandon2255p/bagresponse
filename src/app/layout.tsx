@@ -14,8 +14,8 @@ const oswald = Oswald({
 });
 
 export const metadata: Metadata = {
-  title: "BOXTRAIN | Boxing Training Timer",
-  description: "High-intensity boxing training with audio callouts",
+  title: "BAGRESPONSE | Boxing Training Timer",
+  description: "High-intensity boxing training with pattern-based audio callouts",
 };
 
 export default function RootLayout({

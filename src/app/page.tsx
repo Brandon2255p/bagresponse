@@ -2,16 +2,24 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 
+// A pattern is a sequence of numbers (e.g., [1, 1, 2] or [1, 2])
+type Pattern = number[];
+
 interface TrainingConfig {
   rounds: number;
   minutesPerRound: number;
   restSeconds: number;
-  numbers: number[];
+  patterns: Pattern[];
   minDelay: number;
   maxDelay: number;
 }
 
 type Phase = "setup" | "round" | "rest" | "complete";
+
+// Predefined pattern sets
+const DEFAULT_PATTERNS: Pattern[] = [
+  [1], [2], [3], [4], [5], [6], [7], [8]
+];
 
 export default function Home() {
   // Training configuration
@@ -19,7 +27,7 @@ export default function Home() {
     rounds: 10,
     minutesPerRound: 2,
     restSeconds: 30,
-    numbers: [1, 2, 3, 4, 5, 6],
+    patterns: [...DEFAULT_PATTERNS],
     minDelay: 2,
     maxDelay: 5,
   });
@@ -28,9 +36,12 @@ export default function Home() {
   const [phase, setPhase] = useState<Phase>("setup");
   const [currentRound, setCurrentRound] = useState(1);
   const [timeRemaining, setTimeRemaining] = useState(0);
-  const [currentCallout, setCurrentCallout] = useState<number | null>(null);
+  const [currentPattern, setCurrentPattern] = useState<Pattern | null>(null);
   const [isPaused, setIsPaused] = useState(false);
   const [flashActive, setFlashActive] = useState(false);
+
+  // Pattern builder state
+  const [newPatternInput, setNewPatternInput] = useState("");
 
   // Refs for timer management
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -47,25 +58,34 @@ export default function Home() {
   // Track play promise to handle interruptions
   const playPromiseRef = useRef<Promise<void> | null>(null);
 
-  // Speak a number using local audio files
-  const speakNumber = useCallback(async (num: number) => {
-    if (!audioRef.current || isPausedRef.current) return;
+  // Speak a pattern (sequence of numbers) using local audio files
+  const speakPattern = useCallback(async (pattern: Pattern) => {
+    if (!audioRef.current || isPausedRef.current || pattern.length === 0) return;
 
     try {
-      // Wait for any pending play to settle before pausing
-      if (playPromiseRef.current) {
-        await playPromiseRef.current.catch(() => { });
+      for (const num of pattern) {
+        if (isPausedRef.current) break;
+
+        // Wait for any pending play to settle
+        if (playPromiseRef.current) {
+          await playPromiseRef.current.catch(() => { });
+        }
+
+        // Stop any currently playing audio
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+
+        // Play from local audio file
+        audioRef.current.src = `/sounds/${num}.wav`;
+        const playPromise = audioRef.current.play();
+        playPromiseRef.current = playPromise;
+        await playPromise;
+
+        // Small pause between numbers in a pattern
+        if (pattern.length > 1) {
+          await new Promise(resolve => setTimeout(resolve, 400));
+        }
       }
-
-      // Stop any currently playing audio
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-
-      // Play from local audio file
-      audioRef.current.src = `/sounds/${num}.wav`;
-      const playPromise = audioRef.current.play();
-      playPromiseRef.current = playPromise;
-      await playPromise;
     } catch (error) {
       // Ignore abort errors (interrupted by pause) and NotAllowedError (autoplay policy)
       if (error instanceof Error && error.name !== "AbortError" && error.name !== "NotAllowedError") {
@@ -97,29 +117,29 @@ export default function Home() {
       // Check again when timeout fires in case we paused while waiting
       if (isPausedRef.current) return;
 
-      setCurrentCallout((prevCallout) => {
-        const availableNumbers = config.numbers.filter(
-          (n) => n !== prevCallout
+      setCurrentPattern((prevPattern) => {
+        const availablePatterns = config.patterns.filter(
+          (p) => JSON.stringify(p) !== JSON.stringify(prevPattern)
         );
-        const randomNum =
-          availableNumbers[Math.floor(Math.random() * availableNumbers.length)];
+        const patternsToChooseFrom = availablePatterns.length > 0 ? availablePatterns : config.patterns;
+        const randomPattern = patternsToChooseFrom[Math.floor(Math.random() * patternsToChooseFrom.length)];
         setFlashActive(true);
-        speakNumber(randomNum);
+        speakPattern(randomPattern);
         setTimeout(() => setFlashActive(false), 500);
-        return randomNum;
+        return randomPattern;
       });
 
       // Schedule next callout
       scheduleCallout();
     }, delay * 1000);
-  }, [config, speakNumber]);
+  }, [config, speakPattern]);
 
   // Resume callouts when unpausing during a round
   useEffect(() => {
-    if (!isPaused && phase === "round" && currentCallout !== null) {
+    if (!isPaused && phase === "round" && currentPattern !== null) {
       scheduleCallout();
     }
-  }, [isPaused, phase, currentCallout, scheduleCallout]);
+  }, [isPaused, phase, currentPattern, scheduleCallout]);
 
   // Start training
   const startTraining = () => {
@@ -130,11 +150,10 @@ export default function Home() {
 
     // Initial callout after short delay
     setTimeout(() => {
-      const randomNum =
-        config.numbers[Math.floor(Math.random() * config.numbers.length)];
-      setCurrentCallout(randomNum);
+      const randomPattern = config.patterns[Math.floor(Math.random() * config.patterns.length)];
+      setCurrentPattern(randomPattern);
       setFlashActive(true);
-      speakNumber(randomNum);
+      speakPattern(randomPattern);
       setTimeout(() => setFlashActive(false), 500);
       scheduleCallout();
     }, 2000);
@@ -172,11 +191,10 @@ export default function Home() {
                 setPhase("round");
                 // Schedule first callout of new round
                 setTimeout(() => {
-                  const randomNum =
-                    config.numbers[Math.floor(Math.random() * config.numbers.length)];
-                  setCurrentCallout(randomNum);
+                  const randomPattern = config.patterns[Math.floor(Math.random() * config.patterns.length)];
+                  setCurrentPattern(randomPattern);
                   setFlashActive(true);
-                  speakNumber(randomNum);
+                  speakPattern(randomPattern);
                   setTimeout(() => setFlashActive(false), 500);
                   scheduleCallout();
                 }, 2000);
@@ -192,7 +210,7 @@ export default function Home() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [phase, config, scheduleCallout, speakNumber]);
+  }, [phase, config, scheduleCallout, speakPattern]);
 
   // Reset to setup
   const resetTraining = () => {
@@ -201,7 +219,7 @@ export default function Home() {
     setPhase("setup");
     setCurrentRound(1);
     setTimeRemaining(0);
-    setCurrentCallout(null);
+    setCurrentPattern(null);
     setIsPaused(false);
   };
 
@@ -218,9 +236,42 @@ export default function Home() {
   };
 
   // Update config helpers
-  const updateConfig = (key: keyof TrainingConfig, value: number | number[]) => {
+  const updateConfig = (key: keyof TrainingConfig, value: number | Pattern[]) => {
     setConfig((prev) => ({ ...prev, [key]: value }));
   };
+
+  // Add a new pattern from input
+  const addPattern = () => {
+    const nums = newPatternInput
+      .trim()
+      .split(/\s+/)
+      .map(n => parseInt(n))
+      .filter(n => !isNaN(n) && n >= 1 && n <= 10);
+
+    if (nums.length > 0) {
+      // Check if pattern already exists
+      const patternExists = config.patterns.some(
+        p => JSON.stringify(p) === JSON.stringify(nums)
+      );
+      if (!patternExists) {
+        updateConfig("patterns", [...config.patterns, nums]);
+      }
+      setNewPatternInput("");
+    }
+  };
+
+  // Remove a pattern
+  const removePattern = (patternToRemove: Pattern) => {
+    if (config.patterns.length > 1) {
+      updateConfig(
+        "patterns",
+        config.patterns.filter(p => JSON.stringify(p) !== JSON.stringify(patternToRemove))
+      );
+    }
+  };
+
+  // Format pattern for display
+  const formatPattern = (pattern: Pattern) => pattern.join(" ");
 
   // Setup view
   if (phase === "setup") {
@@ -230,7 +281,7 @@ export default function Home() {
           {/* Header */}
           <div className="text-center mb-12">
             <h1 className="text-7xl md:text-9xl tracking-wider blood-accent" style={{ fontFamily: 'var(--font-bebas)' }}>
-              BOXTRAIN
+              BAGRESPONSE
             </h1>
             <p className="text-rope-gray text-lg mt-4 tracking-widest uppercase" style={{ fontFamily: 'var(--font-oswald)' }}>
               Precision Training System
@@ -289,35 +340,55 @@ export default function Home() {
               />
             </div>
 
-            {/* Numbers Selection */}
+            {/* Pattern Sets */}
             <div className="mb-8">
               <label className="block text-sm uppercase tracking-widest text-rope-gray mb-3" style={{ fontFamily: 'var(--font-oswald)' }}>
-                Numbers to Call
+                Pattern Sets
               </label>
+
+              {/* Pattern Input */}
+              <div className="flex gap-2 mb-4">
+                <input
+                  type="text"
+                  value={newPatternInput}
+                  onChange={(e) => setNewPatternInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addPattern()}
+                  placeholder="e.g., 1 1 2"
+                  className="flex-1 bg-void border border-rope-gray/50 rounded px-3 py-2 text-canvas placeholder:text-rope-gray/50"
+                  style={{ fontFamily: 'var(--font-bebas)', fontSize: '1.25rem' }}
+                />
+                <button
+                  onClick={addPattern}
+                  className="px-4 py-2 bg-blood text-canvas rounded hover:bg-glove-red transition-colors"
+                  style={{ fontFamily: 'var(--font-bebas)', fontSize: '1.25rem' }}
+                >
+                  ADD
+                </button>
+              </div>
+
+              {/* Pattern List */}
               <div className="flex flex-wrap gap-2">
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-                  <button
-                    key={num}
-                    onClick={() => {
-                      const newNumbers = config.numbers.includes(num)
-                        ? config.numbers.filter((n) => n !== num)
-                        : [...config.numbers, num].sort((a, b) => a - b);
-                      if (newNumbers.length >= 2) {
-                        updateConfig("numbers", newNumbers);
-                      }
-                    }}
-                    className={`w-10 h-10 text-xl rounded transition-all ${config.numbers.includes(num)
-                      ? "bg-blood text-canvas"
-                      : "bg-void text-rope-gray border border-rope-gray/50"
-                      }`}
-                    style={{ fontFamily: 'var(--font-bebas)' }}
+                {config.patterns.map((pattern, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center gap-2 bg-void border border-rope-gray/50 rounded px-3 py-2"
                   >
-                    {num}
-                  </button>
+                    <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '1.25rem' }}>
+                      {formatPattern(pattern)}
+                    </span>
+                    {config.patterns.length > 1 && (
+                      <button
+                        onClick={() => removePattern(pattern)}
+                        className="text-rope-gray hover:text-blood transition-colors"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
               <p className="text-xs text-rope-gray mt-2">
-                Select at least 2 numbers
+                Enter patterns like "1 1 2", "1 2", or "1 2 1 2"
               </p>
             </div>
 
@@ -440,18 +511,18 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Current Callout */}
+      {/* Current Pattern */}
       {phase === "round" && (
         <div className="text-center mb-12 ring-rope py-8 px-16">
           <p className="text-rope-gray uppercase tracking-widest text-sm mb-4" style={{ fontFamily: 'var(--font-oswald)' }}>
-            Current Number
+            Current Pattern
           </p>
           <div
-            className={`text-[10rem] md:text-[14rem] leading-none text-blood transition-all duration-200 ${flashActive ? "scale-110" : "scale-100"
+            className={`text-[8rem] md:text-[10rem] leading-none text-blood transition-all duration-200 ${flashActive ? "scale-110" : "scale-100"
               }`}
             style={{ fontFamily: 'var(--font-bebas)' }}
           >
-            {currentCallout ?? "—"}
+            {currentPattern ? formatPattern(currentPattern) : "—"}
           </div>
         </div>
       )}
