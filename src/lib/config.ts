@@ -43,4 +43,4 @@ export const STORAGE_KEY_CONFIG = 'bagresponse-settings';
 export const STORAGE_KEY_PATTERN_SETS = 'bagresponse-pattern-sets';
 
 export type Phase = 'setup' | 'round' | 'rest' | 'complete';
-export type SetupView = 'main' | 'pattern-sets' | 'audio' | 'metronome';
+export type SetupView = 'main' | 'pattern-sets' | 'audio' | 'metronome' | 'rounds';

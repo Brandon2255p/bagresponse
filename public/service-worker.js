@@ -19,6 +19,7 @@ const AUDIO_FILES = [
     '/sounds/man_1/8.mp3',
     '/sounds/man_1/11.mp3',
     '/sounds/man_1/12.mp3',
+    '/bagresponse-logo.png',
 ];
 
 const ALL_CACHED_FILES = [...APP_SHELL_FILES, ...AUDIO_FILES];

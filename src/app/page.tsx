@@ -28,6 +28,7 @@ import {
   CompleteView,
   MetronomeSettingsView,
   PatternSetsView,
+  RoundSettingsView,
   SetupView,
   TrainingView,
 } from "@/components";
@@ -489,6 +490,16 @@ export default function Home() {
     );
   }
 
+  if (phase === "setup" && setupView === "rounds") {
+    return (
+      <RoundSettingsView
+        config={config}
+        updateConfig={updateConfig}
+        onBack={() => setSetupView("main")}
+      />
+    );
+  }
+
   if (phase === "setup" && setupView === "pattern-sets") {
     return (
       <PatternSetsView
@@ -531,6 +542,7 @@ export default function Home() {
         onNavigateToPatternSets={() => setSetupView("pattern-sets")}
         onNavigateToAudio={() => setSetupView("audio")}
         onNavigateToMetronome={() => setSetupView("metronome")}
+        onNavigateToRounds={() => setSetupView("rounds")}
         onImportSharedSet={() => sharedSetPreview && importSharedSet(sharedSetPreview)}
         onCancelImport={cancelImport}
       />

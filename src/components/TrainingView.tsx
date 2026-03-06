@@ -78,7 +78,7 @@ export default function TrainingView({
             )}
 
             {/* Playback Speed Control */}
-            <div className="mb-6 w-full max-w-xs z-10 relative">
+            <div className="mb-4 w-full max-w-xs z-10 relative">
                 <label className="block text-xs uppercase tracking-widest text-rope-gray mb-1 text-center" style={{ fontFamily: 'var(--font-oswald)' }}>
                     Playback Speed: <span className="text-blood">{config.playbackSpeed.toFixed(1)}x</span>
                 </label>
@@ -89,6 +89,31 @@ export default function TrainingView({
                     step="0.1"
                     value={config.playbackSpeed}
                     onChange={(e) => onUpdateConfig("playbackSpeed", parseFloat(e.target.value))}
+                    className="w-full"
+                />
+            </div>
+
+            {/* Callout Delay Control */}
+            <div className="mb-4 w-full max-w-xs z-10 relative">
+                <label className="block text-xs uppercase tracking-widest text-rope-gray mb-1 text-center" style={{ fontFamily: 'var(--font-oswald)' }}>
+                    Delay: <span className="text-blood">{config.baseDelay.toFixed(1)}s</span> to <span className="text-blood">{(config.baseDelay + config.delayVariance).toFixed(1)}s</span>
+                </label>
+                <input
+                    type="range"
+                    min="0.3"
+                    max="8"
+                    step="0.1"
+                    value={config.baseDelay}
+                    onChange={(e) => onUpdateConfig("baseDelay", parseFloat(e.target.value))}
+                    className="w-full mb-2"
+                />
+                <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="0.1"
+                    value={config.delayVariance}
+                    onChange={(e) => onUpdateConfig("delayVariance", parseFloat(e.target.value))}
                     className="w-full"
                 />
             </div>

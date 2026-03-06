@@ -22,6 +22,7 @@ interface SetupViewProps {
     onNavigateToPatternSets: () => void;
     onNavigateToAudio: () => void;
     onNavigateToMetronome: () => void;
+    onNavigateToRounds: () => void;
     onImportSharedSet: () => void;
     onCancelImport: () => void;
 }
@@ -35,6 +36,7 @@ export default function SetupView({
     onNavigateToPatternSets,
     onNavigateToAudio,
     onNavigateToMetronome,
+    onNavigateToRounds,
     onImportSharedSet,
     onCancelImport,
 }: SetupViewProps) {
@@ -65,53 +67,34 @@ export default function SetupView({
                 </div>
 
                 <div className="bg-concrete/30 rounded-lg p-8 border border-rope-gray/30">
-                    {/* Rounds */}
+                    {/* Round Settings */}
                     <div className="mb-8">
-                        <label className="block text-sm uppercase tracking-widest text-rope-gray mb-3" style={{ fontFamily: 'var(--font-oswald)' }}>
-                            Rounds: <span className="text-blood">{config.rounds}</span>
-                        </label>
-                        <input
-                            type="range"
-                            min="1"
-                            max="20"
-                            value={config.rounds}
-                            onChange={(e) => onUpdateConfig("rounds", parseInt(e.target.value))}
-                        />
-                    </div>
-
-                    {/* Round Time */}
-                    <div className="mb-8">
-                        <label className="block text-sm uppercase tracking-widest text-rope-gray mb-3" style={{ fontFamily: 'var(--font-oswald)' }}>
-                            Round Time: <span className="text-blood">{Math.floor(config.roundSeconds / 60)}:{(config.roundSeconds % 60).toString().padStart(2, '0')}</span>
-                        </label>
-                        <input
-                            type="range"
-                            min={ROUND_TIME_MIN}
-                            max={ROUND_TIME_MAX}
-                            step={ROUND_TIME_STEP}
-                            value={config.roundSeconds}
-                            onChange={(e) => onUpdateConfig("roundSeconds", parseInt(e.target.value))}
-                        />
-                        <div className="flex justify-between text-xs text-rope-gray mt-1">
-                            <span>0:30</span>
-                            <span>2:30</span>
-                            <span>5:00</span>
+                        <div className="flex items-center justify-between mb-3">
+                            <label className="block text-sm uppercase tracking-widest text-rope-gray" style={{ fontFamily: 'var(--font-oswald)' }}>
+                                Round Settings
+                            </label>
+                            <button
+                                onClick={onNavigateToRounds}
+                                className="text-sm text-blood hover:underline"
+                                style={{ fontFamily: 'var(--font-oswald)' }}
+                            >
+                                CONFIGURE →
+                            </button>
                         </div>
-                    </div>
-
-                    {/* Rest Period */}
-                    <div className="mb-8">
-                        <label className="block text-sm uppercase tracking-widest text-rope-gray mb-3" style={{ fontFamily: 'var(--font-oswald)' }}>
-                            Rest Between Rounds: <span className="text-blood">{config.restSeconds}s</span>
-                        </label>
-                        <input
-                            type="range"
-                            min="10"
-                            max="120"
-                            step="5"
-                            value={config.restSeconds}
-                            onChange={(e) => onUpdateConfig("restSeconds", parseInt(e.target.value))}
-                        />
+                        <div className="bg-void border border-rope-gray/50 rounded px-4 py-3">
+                            <div className="flex items-center justify-between text-sm">
+                                <span className="text-rope-gray">Rounds:</span>
+                                <span className="text-canvas" style={{ fontFamily: 'var(--font-oswald)' }}>{config.rounds}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-sm mt-1">
+                                <span className="text-rope-gray">Round Time:</span>
+                                <span className="text-canvas" style={{ fontFamily: 'var(--font-oswald)' }}>{Math.floor(config.roundSeconds / 60)}:{(config.roundSeconds % 60).toString().padStart(2, '0')}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-sm mt-1">
+                                <span className="text-rope-gray">Rest:</span>
+                                <span className="text-canvas" style={{ fontFamily: 'var(--font-oswald)' }}>{config.restSeconds}s</span>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Pattern Set Selection */}
@@ -174,30 +157,6 @@ export default function SetupView({
                                 <span className="text-canvas" style={{ fontFamily: 'var(--font-oswald)' }}>{config.audioOverlap}ms</span>
                             </div>
                         </div>
-                    </div>
-
-                    {/* Callout Delay */}
-                    <div className="mb-8">
-                        <label className="block text-sm uppercase tracking-widest text-rope-gray mb-3" style={{ fontFamily: 'var(--font-oswald)' }}>
-                            Callout Delay: <span className="text-blood">{config.baseDelay.toFixed(1)}s</span> to <span className="text-blood">{(config.baseDelay + config.delayVariance).toFixed(1)}s</span>
-                        </label>
-                        <input
-                            type="range"
-                            min="0.3"
-                            max="8"
-                            step="0.1"
-                            value={config.baseDelay}
-                            onChange={(e) => onUpdateConfig("baseDelay", parseFloat(e.target.value))}
-                            className="mb-4"
-                        />
-                        <input
-                            type="range"
-                            min="0"
-                            max="10"
-                            step="0.1"
-                            value={config.delayVariance}
-                            onChange={(e) => onUpdateConfig("delayVariance", parseFloat(e.target.value))}
-                        />
                     </div>
 
                     {/* Metronome */}

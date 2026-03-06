@@ -188,17 +188,17 @@ export const VOICE_EXTENSIONS: Record<VoiceOption, string> = {
 
 ```javascript
 // public/service-worker.js - Add to AUDIO_FILES array
-'/sounds/woman_2/1.mp3',
-'/sounds/woman_2/2.mp3',
-'/sounds/woman_2/3.mp3',
-'/sounds/woman_2/4.mp3',
-'/sounds/woman_2/5.mp3',
-'/sounds/woman_2/6.mp3',
-'/sounds/woman_2/7.mp3',
-'/sounds/woman_2/8.mp3',
+'/sounds/man_1/1.mp3',
+'/sounds/man_1/2.mp3',
+'/sounds/man_1/3.mp3',
+'/sounds/man_1/4.mp3',
+'/sounds/man_1/5.mp3',
+'/sounds/man_1/6.mp3',
+'/sounds/man_1/7.mp3',
+'/sounds/man_1/8.mp3',
 ```
 
-Place audio files in `public/sounds/woman_2/1.mp3` through `8.mp3`.
+Place audio files in `public/sounds/man_2/1.mp3` through `8.mp3`.
 
 ### Adding a New Default Pattern Set
 
