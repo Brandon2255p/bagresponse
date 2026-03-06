@@ -84,8 +84,8 @@ export default function TrainingView({
                 </label>
                 <input
                     type="range"
-                    min="0.5"
-                    max="2.0"
+                    min="0.8"
+                    max="1.8"
                     step="0.1"
                     value={config.playbackSpeed}
                     onChange={(e) => onUpdateConfig("playbackSpeed", parseFloat(e.target.value))}
