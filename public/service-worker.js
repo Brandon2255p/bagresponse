@@ -8,15 +8,15 @@ const APP_SHELL_FILES = [
 
 // Audio files to cache
 const AUDIO_FILES = [
-    // man_1 voice (wav)
-    '/sounds/man_1/1.wav',
-    '/sounds/man_1/2.wav',
-    '/sounds/man_1/3.wav',
-    '/sounds/man_1/4.wav',
-    '/sounds/man_1/5.wav',
-    '/sounds/man_1/6.wav',
-    '/sounds/man_1/7.wav',
-    '/sounds/man_1/8.wav',
+    // man_1 voice (mp3)
+    '/sounds/man_1/1.mp3',
+    '/sounds/man_1/2.mp3',
+    '/sounds/man_1/3.mp3',
+    '/sounds/man_1/4.mp3',
+    '/sounds/man_1/5.mp3',
+    '/sounds/man_1/6.mp3',
+    '/sounds/man_1/7.mp3',
+    '/sounds/man_1/8.mp3',
     // man_2 voice (mp3)
     '/sounds/man_2/1.mp3',
     '/sounds/man_2/2.mp3',

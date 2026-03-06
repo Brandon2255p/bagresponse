@@ -179,7 +179,7 @@ export const VOICE_OPTIONS = [
 ];
 
 export const VOICE_EXTENSIONS: Record<VoiceOption, string> = {
-    man_1: "wav",
+    man_1: "mp3",
     man_2: "mp3",
     woman_1: "mp3",
     woman_2: "mp3",  // Add this

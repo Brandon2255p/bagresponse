@@ -10,7 +10,7 @@ export const VOICE_OPTIONS: { value: VoiceOption; label: string }[] = [
 
 // File extension for each voice
 export const VOICE_EXTENSIONS: Record<VoiceOption, string> = {
-    man_1: "wav",
+    man_1: "mp3",
     man_2: "mp3",
     woman_1: "mp3",
     woman_2: "mp3",
