@@ -86,8 +86,8 @@ export default function MetronomeSettingsView({
                                     onClick={() => updateConfig("metronomePitch", option.value)}
                                     disabled={!config.metronomeEnabled}
                                     className={`px-4 py-3 rounded transition-colors ${config.metronomePitch === option.value
-                                            ? 'bg-blood text-canvas'
-                                            : 'bg-concrete text-canvas hover:bg-rope-gray border border-rope-gray/50'
+                                        ? 'bg-blood text-canvas'
+                                        : 'bg-concrete text-canvas hover:bg-rope-gray border border-rope-gray/50'
                                         } disabled:opacity-50`}
                                     style={{ fontFamily: 'var(--font-oswald)' }}
                                 >
@@ -95,6 +95,27 @@ export default function MetronomeSettingsView({
                                     <div className="text-xs text-rope-gray">{option.frequency}</div>
                                 </button>
                             ))}
+                        </div>
+                    </div>
+
+                    {/* Volume Slider */}
+                    <div className="mb-8">
+                        <label className="block text-sm uppercase tracking-widest text-rope-gray mb-3" style={{ fontFamily: 'var(--font-oswald)' }}>
+                            Volume: <span className="text-blood">{Math.round(config.metronomeVolume * 100)}%</span>
+                        </label>
+                        <input
+                            type="range"
+                            min="0.1"
+                            max="1.0"
+                            step="0.05"
+                            value={config.metronomeVolume}
+                            onChange={(e) => updateConfig("metronomeVolume", parseFloat(e.target.value))}
+                            disabled={!config.metronomeEnabled}
+                            className="w-full disabled:opacity-50"
+                        />
+                        <div className="flex justify-between text-xs text-rope-gray mt-1">
+                            <span>Quiet</span>
+                            <span>Loud</span>
                         </div>
                     </div>
 

@@ -223,6 +223,10 @@ export default function SetupView({
                                     <span className="text-rope-gray">Pitch:</span>
                                     <span className="text-canvas capitalize" style={{ fontFamily: 'var(--font-oswald)' }}>{config.metronomePitch}</span>
                                 </div>
+                                <div className="flex items-center justify-between text-sm mt-1">
+                                    <span className="text-rope-gray">Volume:</span>
+                                    <span className="text-canvas" style={{ fontFamily: 'var(--font-oswald)' }}>{Math.round(config.metronomeVolume * 100)}%</span>
+                                </div>
                             </div>
                         )}
                     </div>

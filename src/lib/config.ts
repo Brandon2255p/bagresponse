@@ -15,6 +15,7 @@ export interface TrainingConfig {
     metronomeEnabled: boolean;
     metronomeFrequency: number;
     metronomePitch: MetronomePitch;
+    metronomeVolume: number;
 }
 
 export const DEFAULT_CONFIG: TrainingConfig = {
@@ -30,6 +31,7 @@ export const DEFAULT_CONFIG: TrainingConfig = {
     metronomeEnabled: false,
     metronomeFrequency: 120,
     metronomePitch: 'medium',
+    metronomeVolume: 0.3,
 };
 
 // Round time settings: min 30s, max 300s (5 min), step 15s

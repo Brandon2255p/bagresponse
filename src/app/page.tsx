@@ -79,7 +79,8 @@ export default function Home() {
   );
   const { startMetronome, stopMetronome } = useMetronome(
     config.metronomeFrequency,
-    config.metronomePitch
+    config.metronomePitch,
+    config.metronomeVolume
   );
 
   // Update refs when state changes
@@ -210,11 +211,6 @@ export default function Home() {
     setCurrentRound(1);
     setIsPaused(false);
 
-    // Start metronome if enabled
-    if (config.metronomeEnabled) {
-      startMetronome();
-    }
-
     // 3 second countdown before first round
     setPhase("rest");
     setTimeRemaining(3);
@@ -226,6 +222,12 @@ export default function Home() {
     setTimeout(() => {
       setPhase("round");
       setTimeRemaining(config.roundSeconds);
+
+      // Start metronome when round begins
+      if (config.metronomeEnabled) {
+        startMetronome();
+      }
+
       const currentSet = getCurrentPatternSet();
       const randomPattern = currentSet.patterns[Math.floor(Math.random() * currentSet.patterns.length)];
       setCurrentPattern(randomPattern);
@@ -259,6 +261,10 @@ export default function Home() {
               if (phaseRef.current === "round") {
                 endBeepsPlayedRef.current = false;
                 stopAllAudio();
+
+                // Stop metronome when round ends
+                stopMetronome();
+
                 if (calloutRef.current) clearTimeout(calloutRef.current);
                 if (currentRoundRef.current < config.rounds) {
                   setPhase("rest");
@@ -279,6 +285,12 @@ export default function Home() {
                 // End of rest - start round immediately (beeps already played at 3s or earlier)
                 setCurrentRound((r) => r + 1);
                 setPhase("round");
+
+                // Start metronome for new round
+                if (config.metronomeEnabled) {
+                  startMetronome();
+                }
+
                 setTimeRemaining(config.roundSeconds);
                 const currentSet = getCurrentPatternSet();
                 const randomPattern = currentSet.patterns[Math.floor(Math.random() * currentSet.patterns.length)];
@@ -317,11 +329,13 @@ export default function Home() {
   // Toggle pause
   const togglePause = () => {
     if (!isPaused) {
-      // Pausing - stop metronome
-      stopMetronome();
+      // Pausing - stop metronome only during round
+      if (phase === "round") {
+        stopMetronome();
+      }
     } else {
-      // Resuming - start metronome if enabled
-      if (config.metronomeEnabled && phase === "round") {
+      // Resuming - start metronome only during round
+      if (phase === "round" && config.metronomeEnabled) {
         startMetronome();
       }
     }

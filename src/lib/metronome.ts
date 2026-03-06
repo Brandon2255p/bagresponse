@@ -5,7 +5,8 @@ import type { MetronomePitch } from './config';
 
 export function useMetronome(
     frequency: number,
-    pitch: MetronomePitch
+    pitch: MetronomePitch,
+    volume: number
 ) {
     const audioContextRef = useRef<AudioContext | null>(null);
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -42,12 +43,12 @@ export function useMetronome(
         // Short tick envelope
         const now = ctx.currentTime;
         gainNode.gain.setValueAtTime(0, now);
-        gainNode.gain.linearRampToValueAtTime(0.3, now + 0.01);
+        gainNode.gain.linearRampToValueAtTime(volume, now + 0.01);
         gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
 
         oscillator.start(now);
         oscillator.stop(now + 0.05);
-    }, [pitch, getPitchFrequency]);
+    }, [pitch, volume, getPitchFrequency]);
 
     // Start metronome
     const startMetronome = useCallback(() => {
