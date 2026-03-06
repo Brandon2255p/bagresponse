@@ -220,7 +220,7 @@ export default function SetupView({
 
                 {/* Version */}
                 {version && (
-                    <div className="text-center mt-6 text-xs text-rope-gray/50" style={{ fontFamily: 'var(--font-oswald)' }}>
+                    <div className="text-center mt-6 pb-4 text-sm text-rope-gray/70" style={{ fontFamily: 'var(--font-oswald)' }}>
                         v{version}
                     </div>
                 )}

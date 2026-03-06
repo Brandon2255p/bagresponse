@@ -34,6 +34,7 @@ export default function TrainingView({
         return `${mins}:${secs.toString().padStart(2, "0")}`;
     };
 
+    const [showSettings, setShowSettings] = useState(false);
     const [isLocked, setIsLocked] = useState(false);
     const [unlockProgress, setUnlockProgress] = useState(0);
     const unlockTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -125,49 +126,63 @@ export default function TrainingView({
                 </div>
             )}
 
-            {/* Playback Speed Control */}
-            <div className={`mb-4 w-full max-w-xs z-10 relative ${isLocked ? 'opacity-30 pointer-events-none' : ''}`}>
-                <label className="block text-xs uppercase tracking-widest text-rope-gray mb-1 text-center" style={{ fontFamily: 'var(--font-oswald)' }}>
-                    Playback Speed: <span className="text-blood">{config.playbackSpeed.toFixed(1)}x</span>
-                </label>
-                <input
-                    type="range"
-                    min="0.8"
-                    max="1.8"
-                    step="0.1"
-                    value={config.playbackSpeed}
-                    onChange={(e) => onUpdateConfig("playbackSpeed", parseFloat(e.target.value))}
-                    className="w-full"
-                    disabled={isLocked}
-                />
-            </div>
+            {/* Settings Toggle */}
+            <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="mb-4 text-xs text-rope-gray uppercase tracking-widest hover:text-blood z-10 relative"
+                style={{ fontFamily: 'var(--font-oswald)' }}
+            >
+                {showSettings ? '▲ HIDE SETTINGS' : '▼ SHOW SETTINGS'}
+            </button>
 
-            {/* Callout Delay Control */}
-            <div className={`mb-4 w-full max-w-xs z-10 relative ${isLocked ? 'opacity-30 pointer-events-none' : ''}`}>
-                <label className="block text-xs uppercase tracking-widest text-rope-gray mb-1 text-center" style={{ fontFamily: 'var(--font-oswald)' }}>
-                    Delay: <span className="text-blood">{config.baseDelay.toFixed(1)}s</span> to <span className="text-blood">{(config.baseDelay + config.delayVariance).toFixed(1)}s</span>
-                </label>
-                <input
-                    type="range"
-                    min="0.3"
-                    max="8"
-                    step="0.1"
-                    value={config.baseDelay}
-                    onChange={(e) => onUpdateConfig("baseDelay", parseFloat(e.target.value))}
-                    className="w-full mb-2"
-                    disabled={isLocked}
-                />
-                <input
-                    type="range"
-                    min="0"
-                    max="10"
-                    step="0.1"
-                    value={config.delayVariance}
-                    onChange={(e) => onUpdateConfig("delayVariance", parseFloat(e.target.value))}
-                    className="w-full"
-                    disabled={isLocked}
-                />
-            </div>
+            {/* Settings Panel */}
+            {showSettings && (
+                <>
+                    {/* Playback Speed Control */}
+                    <div className={`mb-4 w-full max-w-xs z-10 relative ${isLocked ? 'opacity-30 pointer-events-none' : ''}`}>
+                        <label className="block text-xs uppercase tracking-widest text-rope-gray mb-1 text-center" style={{ fontFamily: 'var(--font-oswald)' }}>
+                            Playback Speed: <span className="text-blood">{config.playbackSpeed.toFixed(1)}x</span>
+                        </label>
+                        <input
+                            type="range"
+                            min="0.8"
+                            max="1.8"
+                            step="0.1"
+                            value={config.playbackSpeed}
+                            onChange={(e) => onUpdateConfig("playbackSpeed", parseFloat(e.target.value))}
+                            className="w-full"
+                            disabled={isLocked}
+                        />
+                    </div>
+
+                    {/* Callout Delay Control */}
+                    <div className={`mb-4 w-full max-w-xs z-10 relative ${isLocked ? 'opacity-30 pointer-events-none' : ''}`}>
+                        <label className="block text-xs uppercase tracking-widest text-rope-gray mb-1 text-center" style={{ fontFamily: 'var(--font-oswald)' }}>
+                            Delay: <span className="text-blood">{config.baseDelay.toFixed(1)}s</span> to <span className="text-blood">{(config.baseDelay + config.delayVariance).toFixed(1)}s</span>
+                        </label>
+                        <input
+                            type="range"
+                            min="0.3"
+                            max="8"
+                            step="0.1"
+                            value={config.baseDelay}
+                            onChange={(e) => onUpdateConfig("baseDelay", parseFloat(e.target.value))}
+                            className="w-full mb-2"
+                            disabled={isLocked}
+                        />
+                        <input
+                            type="range"
+                            min="0"
+                            max="10"
+                            step="0.1"
+                            value={config.delayVariance}
+                            onChange={(e) => onUpdateConfig("delayVariance", parseFloat(e.target.value))}
+                            className="w-full"
+                            disabled={isLocked}
+                        />
+                    </div>
+                </>
+            )}
 
             {/* Controls */}
             <div className="flex gap-4 z-10 relative">
@@ -195,8 +210,8 @@ export default function TrainingView({
                     onTouchStart={handleLockPress}
                     onTouchEnd={handleUnlockRelease}
                     className={`px-8 py-3 text-lg uppercase tracking-widest rounded transition-colors ${isLocked
-                            ? 'bg-ring-gold text-void'
-                            : 'border border-ring-gold text-ring-gold hover:bg-ring-gold hover:text-void'
+                        ? 'bg-ring-gold text-void'
+                        : 'border border-ring-gold text-ring-gold hover:bg-ring-gold hover:text-void'
                         }`}
                     style={{ fontFamily: 'var(--font-oswald)' }}
                 >
