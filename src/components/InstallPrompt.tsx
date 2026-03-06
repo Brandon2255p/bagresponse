@@ -130,77 +130,104 @@ export default function InstallPrompt() {
         setShowModal(true);
     };
 
-    // Don't render if not visible or already installed
-    if (!isVisible || isInstalled) return null;
+    // Don't render if already installed
+    if (isInstalled) return null;
 
     return (
         <>
-            {/* Sticky Banner at Top */}
-            <div
-                className="fixed top-0 left-0 right-0 z-50 bg-concrete border-b-2 border-ring-gold shadow-lg md:hidden"
+            {/* Permanent Install Button - Top Right */}
+            <button
+                onClick={() => setShowModal(true)}
+                className="fixed top-4 right-4 z-40 px-3 py-2 bg-concrete border border-ring-gold/50 rounded-lg hover:bg-rope-gray transition-colors flex items-center gap-2"
+                style={{ fontFamily: 'var(--font-oswald)' }}
+                aria-label="Install app"
             >
-                <div className="flex items-center justify-between px-4 py-3">
-                    <button
-                        onClick={handleBannerClick}
-                        className="flex items-center gap-3 flex-1"
-                    >
-                        <div className="w-8 h-8 bg-ring-gold/20 rounded-full flex items-center justify-center shrink-0">
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-4 h-4 text-ring-gold"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                >
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                    />
+                </svg>
+                <span className="text-sm text-canvas hidden sm:inline">INSTALL</span>
+            </button>
+
+            {/* Sticky Banner at Top */}
+            {isVisible && platform !== "other" && (
+                <div
+                    className="fixed top-0 left-0 right-0 z-50 bg-concrete border-b-2 border-ring-gold shadow-lg md:hidden"
+                >
+                    <div className="flex items-center justify-between px-4 py-3">
+                        <button
+                            onClick={handleBannerClick}
+                            className="flex items-center gap-3 flex-1"
+                        >
+                            <div className="w-8 h-8 bg-ring-gold/20 rounded-full flex items-center justify-center shrink-0">
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="w-4 h-4 text-ring-gold"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"
+                                    />
+                                </svg>
+                            </div>
+                            <div className="text-left">
+                                <p
+                                    className="text-canvas text-sm font-medium"
+                                    style={{ fontFamily: "var(--font-bebas)", letterSpacing: "0.05em" }}
+                                >
+                                    ADD TO HOME SCREEN
+                                </p>
+                                <p
+                                    className="text-rope-gray text-xs"
+                                    style={{ fontFamily: "var(--font-oswald)" }}
+                                >
+                                    Install for quick access
+                                </p>
+                            </div>
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
-                                className="w-4 h-4 text-ring-gold"
+                                className="w-5 h-5 text-ring-gold"
                                 fill="none"
                                 viewBox="0 0 24 24"
                                 stroke="currentColor"
                             >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"
-                                />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                             </svg>
-                        </div>
-                        <div className="text-left">
-                            <p
-                                className="text-canvas text-sm font-medium"
-                                style={{ fontFamily: "var(--font-bebas)", letterSpacing: "0.05em" }}
-                            >
-                                ADD TO HOME SCREEN
-                            </p>
-                            <p
-                                className="text-rope-gray text-xs"
-                                style={{ fontFamily: "var(--font-oswald)" }}
-                            >
-                                Install for quick access
-                            </p>
-                        </div>
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="w-5 h-5 text-ring-gold"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
+                        </button>
+                        <button
+                            onClick={handleHideBanner}
+                            className="ml-3 p-1 text-rope-gray hover:text-blood transition-colors"
+                            aria-label="Don't show again"
                         >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                    </button>
-                    <button
-                        onClick={handleHideBanner}
-                        className="ml-3 p-1 text-rope-gray hover:text-blood transition-colors"
-                        aria-label="Don't show again"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="w-5 h-5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                        >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="w-5 h-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
-            </div>
+
+            )}
 
             {/* Instructions Modal */}
             {showModal && (

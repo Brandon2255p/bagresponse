@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bagresponse-cache-v2';
+const BASE_CACHE_NAME = 'bagresponse-cache';
 
 // App shell files to cache
 const APP_SHELL_FILES = [
@@ -48,38 +48,73 @@ const AUDIO_FILES = [
 
 const ALL_CACHED_FILES = [...APP_SHELL_FILES, ...AUDIO_FILES];
 
-// Install event - cache app shell and audio files
+// Get current cache name (includes version)
+async function getCacheName() {
+    try {
+        // Fetch version file with cache-busting to ensure we get latest
+        const response = await fetch(`/version.json?t=${Date.now()}`);
+        if (response.ok) {
+            const data = await response.json();
+            const version = data.version || 'v1';
+            return `${BASE_CACHE_NAME}-${version}`;
+        }
+    } catch (e) {
+        console.log('[SW] Could not fetch version, using default cache');
+    }
+    // Default cache name if version fetch fails
+    return `${BASE_CACHE_NAME}-default`;
+}
+
+// Check if cache needs update
+async function checkAndUpdateCache() {
+    const cacheName = await getCacheName();
+
+    // Try to get existing cache
+    const cacheNames = await caches.keys();
+    const existingCache = cacheNames.find(name => name.startsWith(BASE_CACHE_NAME));
+
+    // If cache doesn't exist or is different version, create new cache
+    if (!existingCache || existingCache !== cacheName) {
+        console.log('[SW] Creating new cache:', cacheName);
+        const cache = await caches.open(cacheName);
+
+        // Cache all files
+        await cache.addAll(ALL_CACHED_FILES);
+
+        // Delete old caches
+        for (const name of cacheNames) {
+            if (name.startsWith(BASE_CACHE_NAME) && name !== cacheName) {
+                console.log('[SW] Deleting old cache:', name);
+                await caches.delete(name);
+            }
+        }
+
+        return cacheName;
+    }
+
+    return existingCache;
+}
+
+// Install event
 self.addEventListener('install', (event) => {
     event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then((cache) => {
-                console.log('[SW] Caching app shell and audio files...');
-                return cache.addAll(ALL_CACHED_FILES);
-            })
-            .catch((err) => {
-                console.error('[SW] Failed to cache files:', err);
-            })
+        checkAndUpdateCache().then(() => {
+            console.log('[SW] Service worker installed');
+            self.skipWaiting();
+        }).catch(err => {
+            console.error('[SW] Install failed:', err);
+        })
     );
-    // Activate immediately
-    self.skipWaiting();
 });
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
     event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames
-                    .filter((name) => name !== CACHE_NAME)
-                    .map((name) => {
-                        console.log('[SW] Deleting old cache:', name);
-                        return caches.delete(name);
-                    })
-            );
+        checkAndUpdateCache().then(() => {
+            console.log('[SW] Service worker activated');
+            return self.clients.claim();
         })
     );
-    // Take control of all clients immediately
-    self.clients.claim();
 });
 
 // Fetch event - serve from cache when available, with network fallback
@@ -92,8 +127,20 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Skip cross-origin requests
+    // Skip cross-origin requests (except for fonts, etc.)
     if (url.origin !== self.location.origin) {
+        return;
+    }
+
+    // For version.json, always try network first and don't cache
+    if (url.pathname === '/version.json') {
+        event.respondWith(
+            fetch(request)
+                .catch(() => {
+                    // If offline and we have a cached version, use it
+                    return caches.match('/version.json');
+                })
+        );
         return;
     }
 
@@ -114,16 +161,17 @@ self.addEventListener('fetch', (event) => {
 
                     // Cache the new response for future
                     const responseToCache = networkResponse.clone();
-                    caches.open(CACHE_NAME).then((cache) => {
-                        cache.put(request, responseToCache);
+                    getCacheName().then(cacheName => {
+                        caches.open(cacheName).then((cache) => {
+                            cache.put(request, responseToCache);
+                        });
                     });
 
                     return networkResponse;
                 })
                 .catch((error) => {
                     console.error('[SW] Fetch failed:', error);
-                    // You could return a custom offline page here
-                    throw error;
+                    // Return nothing - app will handle offline state
                 });
         })
     );
