@@ -17,6 +17,7 @@ import {
   type TrainingConfig,
   useBeeps,
   useAudio,
+  useMetronome,
 } from "@/lib";
 
 // Import SetupView type with alias to avoid conflict with component
@@ -25,6 +26,7 @@ import { type SetupView as SetupViewType } from "@/lib";
 import {
   AudioSettingsView,
   CompleteView,
+  MetronomeSettingsView,
   PatternSetsView,
   SetupView,
   TrainingView,
@@ -74,6 +76,10 @@ export default function Home() {
     config.playbackSpeed,
     config.audioOverlap,
     config.voice
+  );
+  const { startMetronome, stopMetronome } = useMetronome(
+    config.metronomeFrequency,
+    config.metronomePitch
   );
 
   // Update refs when state changes
@@ -204,6 +210,11 @@ export default function Home() {
     setCurrentRound(1);
     setIsPaused(false);
 
+    // Start metronome if enabled
+    if (config.metronomeEnabled) {
+      startMetronome();
+    }
+
     // 3 second countdown before first round
     setPhase("rest");
     setTimeRemaining(3);
@@ -294,6 +305,7 @@ export default function Home() {
   const resetTraining = () => {
     if (timerRef.current) clearInterval(timerRef.current);
     if (calloutRef.current) clearTimeout(calloutRef.current);
+    stopMetronome();
     setPhase("setup");
     setSetupView("main");
     setCurrentRound(1);
@@ -304,11 +316,20 @@ export default function Home() {
 
   // Toggle pause
   const togglePause = () => {
+    if (!isPaused) {
+      // Pausing - stop metronome
+      stopMetronome();
+    } else {
+      // Resuming - start metronome if enabled
+      if (config.metronomeEnabled && phase === "round") {
+        startMetronome();
+      }
+    }
     setIsPaused((prev) => !prev);
   };
 
   // Update config
-  const updateConfig = (key: keyof TrainingConfig, value: string | number) => {
+  const updateConfig = (key: keyof TrainingConfig, value: string | number | boolean) => {
     setConfig((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -349,7 +370,7 @@ export default function Home() {
       .split(/\s+/);
 
     // Valid special commands
-    const validCommands = ['head', 'body', 'beep'];
+    const validCommands = ['head', 'body'];
 
     const parsed = tokens.map(t => {
       const num = parseInt(t);
@@ -444,6 +465,16 @@ export default function Home() {
     );
   }
 
+  if (phase === "setup" && setupView === "metronome") {
+    return (
+      <MetronomeSettingsView
+        config={config}
+        updateConfig={updateConfig}
+        onBack={() => setSetupView("main")}
+      />
+    );
+  }
+
   if (phase === "setup" && setupView === "pattern-sets") {
     return (
       <PatternSetsView
@@ -485,6 +516,7 @@ export default function Home() {
         onStartTraining={startTraining}
         onNavigateToPatternSets={() => setSetupView("pattern-sets")}
         onNavigateToAudio={() => setSetupView("audio")}
+        onNavigateToMetronome={() => setSetupView("metronome")}
         onImportSharedSet={() => sharedSetPreview && importSharedSet(sharedSetPreview)}
         onCancelImport={cancelImport}
       />

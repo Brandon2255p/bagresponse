@@ -54,7 +54,7 @@ function PatternInputButtons({
 
             {/* Number buttons */}
             <div className="grid grid-cols-5 gap-2">
-                {[1, 2, 3, 4, 5, 6, 7, 8, "Head", "Body", "BEEP"].map((num) => (
+                {[1, 2, 3, 4, 5, 6, 7, 8, "Head", "Body"].map((num) => (
                     <button
                         key={num}
                         onClick={() => onAddNumber(num)}

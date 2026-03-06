@@ -3,3 +3,4 @@ export * from './patterns';
 export * from './config';
 export { useBeeps } from './beeps';
 export { useAudio } from './audio';
+export { useMetronome } from './metronome';

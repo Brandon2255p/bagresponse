@@ -29,12 +29,6 @@ export const DEFAULT_PATTERN_SETS: PatternSet[] = [
         isDefault: true,
     },
     {
-        id: "beep-1",
-        name: "Beep",
-        patterns: [["beep"]],
-        isDefault: true,
-    },
-    {
         id: "advanced",
         name: "Advanced",
         patterns: [[1, 1, 2], [1, 2, 1, 2], [1, 2, 3, 4], [3, 4]],

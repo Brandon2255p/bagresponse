@@ -16,10 +16,11 @@ interface SetupViewProps {
     config: TrainingConfig;
     patternSets: PatternSet[];
     sharedSetPreview: PatternSet | null;
-    onUpdateConfig: (key: keyof TrainingConfig, value: string | number) => void;
+    onUpdateConfig: (key: keyof TrainingConfig, value: string | number | boolean) => void;
     onStartTraining: () => void;
     onNavigateToPatternSets: () => void;
     onNavigateToAudio: () => void;
+    onNavigateToMetronome: () => void;
     onImportSharedSet: () => void;
     onCancelImport: () => void;
 }
@@ -32,6 +33,7 @@ export default function SetupView({
     onStartTraining,
     onNavigateToPatternSets,
     onNavigateToAudio,
+    onNavigateToMetronome,
     onImportSharedSet,
     onCancelImport,
 }: SetupViewProps) {
@@ -187,6 +189,42 @@ export default function SetupView({
                             value={config.delayVariance}
                             onChange={(e) => onUpdateConfig("delayVariance", parseFloat(e.target.value))}
                         />
+                    </div>
+
+                    {/* Metronome */}
+                    <div className="mb-8">
+                        <div className="flex items-center justify-between mb-3">
+                            <label className="flex items-center gap-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={config.metronomeEnabled}
+                                    onChange={(e) => onUpdateConfig("metronomeEnabled", e.target.checked)}
+                                    className="w-5 h-5 rounded border-rope-gray bg-void text-blood focus:ring-blood focus:ring-offset-0"
+                                />
+                                <span className="text-sm uppercase tracking-widest text-rope-gray" style={{ fontFamily: 'var(--font-oswald)' }}>
+                                    Metronome
+                                </span>
+                            </label>
+                            <button
+                                onClick={onNavigateToMetronome}
+                                className="text-sm text-blood hover:underline"
+                                style={{ fontFamily: 'var(--font-oswald)' }}
+                            >
+                                CONFIGURE →
+                            </button>
+                        </div>
+                        {config.metronomeEnabled && (
+                            <div className="bg-void border border-rope-gray/50 rounded px-4 py-3">
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="text-rope-gray">Tempo:</span>
+                                    <span className="text-canvas" style={{ fontFamily: 'var(--font-oswald)' }}>{config.metronomeFrequency} BPM</span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm mt-1">
+                                    <span className="text-rope-gray">Pitch:</span>
+                                    <span className="text-canvas capitalize" style={{ fontFamily: 'var(--font-oswald)' }}>{config.metronomePitch}</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Start Button */}

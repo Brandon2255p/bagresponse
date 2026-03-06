@@ -1,5 +1,7 @@
 import type { VoiceOption } from './voices';
 
+export type MetronomePitch = 'low' | 'medium' | 'high';
+
 export interface TrainingConfig {
     rounds: number;
     roundSeconds: number;
@@ -10,6 +12,9 @@ export interface TrainingConfig {
     playbackSpeed: number;
     voice: VoiceOption;
     audioOverlap: number;
+    metronomeEnabled: boolean;
+    metronomeFrequency: number;
+    metronomePitch: MetronomePitch;
 }
 
 export const DEFAULT_CONFIG: TrainingConfig = {
@@ -22,6 +27,9 @@ export const DEFAULT_CONFIG: TrainingConfig = {
     playbackSpeed: 1.0,
     voice: 'man_1',
     audioOverlap: 0,
+    metronomeEnabled: false,
+    metronomeFrequency: 120,
+    metronomePitch: 'medium',
 };
 
 // Round time settings: min 30s, max 300s (5 min), step 15s
@@ -33,4 +41,4 @@ export const STORAGE_KEY_CONFIG = 'bagresponse-settings';
 export const STORAGE_KEY_PATTERN_SETS = 'bagresponse-pattern-sets';
 
 export type Phase = 'setup' | 'round' | 'rest' | 'complete';
-export type SetupView = 'main' | 'pattern-sets' | 'audio';
+export type SetupView = 'main' | 'pattern-sets' | 'audio' | 'metronome';
