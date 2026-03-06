@@ -17,33 +17,8 @@ const AUDIO_FILES = [
     '/sounds/man_1/6.mp3',
     '/sounds/man_1/7.mp3',
     '/sounds/man_1/8.mp3',
-    // man_2 voice (mp3)
-    '/sounds/man_2/1.mp3',
-    '/sounds/man_2/2.mp3',
-    '/sounds/man_2/3.mp3',
-    '/sounds/man_2/4.mp3',
-    '/sounds/man_2/5.mp3',
-    '/sounds/man_2/6.mp3',
-    '/sounds/man_2/7.mp3',
-    '/sounds/man_2/8.mp3',
-    // woman_1 voice (mp3)
-    '/sounds/woman_1/1.mp3',
-    '/sounds/woman_1/2.mp3',
-    '/sounds/woman_1/3.mp3',
-    '/sounds/woman_1/4.mp3',
-    '/sounds/woman_1/5.mp3',
-    '/sounds/woman_1/6.mp3',
-    '/sounds/woman_1/7.mp3',
-    '/sounds/woman_1/8.mp3',
-    // woman_2 voice (mp3)
-    '/sounds/woman_2/1.mp3',
-    '/sounds/woman_2/2.mp3',
-    '/sounds/woman_2/3.mp3',
-    '/sounds/woman_2/4.mp3',
-    '/sounds/woman_2/5.mp3',
-    '/sounds/woman_2/6.mp3',
-    '/sounds/woman_2/7.mp3',
-    '/sounds/woman_2/8.mp3',
+    '/sounds/man_1/11.mp3',
+    '/sounds/man_1/12.mp3',
 ];
 
 const ALL_CACHED_FILES = [...APP_SHELL_FILES, ...AUDIO_FILES];

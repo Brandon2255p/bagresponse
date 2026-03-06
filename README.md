@@ -125,10 +125,7 @@ npm start
 ## Audio Files
 
 The app uses pre-recorded voice files located in `public/sounds/`:
-- `man_1/`: Male voice 1 (WAV format)
-- `man_2/`: Male voice 2 (MP3 format)
-- `woman_1/`: Female voice 1 (MP3 format)
-- `woman_2/`: Female voice 2 (MP3 format)
+- `man_1/`: Male voice 1 (MP3 format)
 
 Each directory contains numbered files 1-8 corresponding to punch numbers.
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
     type PatternSet,
     VOICE_OPTIONS,
@@ -38,6 +39,14 @@ export default function SetupView({
     onCancelImport,
 }: SetupViewProps) {
     const currentSet = patternSets.find(s => s.id === config.selectedPatternSetId) || patternSets[0];
+    const [version, setVersion] = useState<string>("");
+
+    useEffect(() => {
+        fetch("/version.json")
+            .then(res => res.json())
+            .then(data => setVersion(data.version))
+            .catch(() => setVersion(""));
+    }, []);
 
     return (
         <main className="min-h-screen bg-void text-canvas p-6 pt-20 md:p-12">
@@ -248,6 +257,13 @@ export default function SetupView({
                         onImport={onImportSharedSet}
                         onCancel={onCancelImport}
                     />
+                )}
+
+                {/* Version */}
+                {version && (
+                    <div className="text-center mt-6 text-xs text-rope-gray/50" style={{ fontFamily: 'var(--font-oswald)' }}>
+                        v{version}
+                    </div>
                 )}
             </div>
         </main>
