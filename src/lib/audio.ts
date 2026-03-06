@@ -3,6 +3,48 @@ import type { Pattern } from './patterns';
 import type { VoiceOption } from './voices';
 import { getVoicePath } from './voices';
 
+// Helper function to play a beep tone using Web Audio API
+async function playBeepTone(
+    frequency: number = 1000,
+    duration: number = 200,
+    volume: number = 0.3
+): Promise<void> {
+    return new Promise((resolve) => {
+        if (typeof window === 'undefined') {
+            resolve();
+            return;
+        }
+
+        try {
+            const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+            const ctx = new AudioContextClass();
+            const oscillator = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(ctx.destination);
+
+            oscillator.frequency.value = frequency;
+            oscillator.type = 'sine';
+
+            // Envelope for smoother sound
+            gainNode.gain.setValueAtTime(0, ctx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(volume, ctx.currentTime + 0.05);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration / 1000);
+
+            oscillator.start(ctx.currentTime);
+            oscillator.stop(ctx.currentTime + duration / 1000);
+
+            setTimeout(() => {
+                ctx.close();
+                resolve();
+            }, duration);
+        } catch {
+            resolve();
+        }
+    });
+}
+
 export function useAudio(playbackSpeed: number, audioOverlap: number, voice: VoiceOption) {
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const activeAudioElementsRef = useRef<HTMLAudioElement[]>([]);
@@ -69,6 +111,18 @@ export function useAudio(playbackSpeed: number, audioOverlap: number, voice: Voi
 
                         const audioPath = getVoicePath(voice, num);
 
+                        // Handle "beep" command specially with programmatic tone
+                        if (typeof num === 'string' && num.toLowerCase() === 'beep') {
+                            resolve();
+                            return;
+                        }
+
+                        // Skip if no audio path available (e.g., unknown command)
+                        if (!audioPath) {
+                            resolve();
+                            return;
+                        }
+
                         // Small staggered delay between each number (80ms)
                         const staggerDelay = index * 80;
 
@@ -125,6 +179,17 @@ export function useAudio(playbackSpeed: number, audioOverlap: number, voice: Voi
                     audio.currentTime = 0;
 
                     const audioPath = getVoicePath(voice, num);
+
+                    // Handle "beep" command specially with programmatic tone
+                    if (typeof num === 'string' && num.toLowerCase() === 'beep') {
+                        await playBeepTone(1000, 200, 0.3);
+                        continue;
+                    }
+
+                    // Skip if no audio path available (e.g., unknown command)
+                    if (!audioPath) {
+                        continue;
+                    }
 
                     // Wait for audio to be ready
                     await new Promise<void>((resolve, reject) => {

@@ -343,20 +343,33 @@ export default function Home() {
   };
 
   const addPatternToSet = (setId: string) => {
-    const nums = newPatternInput
+    const tokens = newPatternInput
       .trim()
-      .split(/\s+/)
-      .map(n => parseInt(n))
-      .filter(n => !isNaN(n) && n >= 1 && n <= 10);
+      .toLowerCase()
+      .split(/\s+/);
 
-    if (nums.length > 0) {
+    // Valid special commands
+    const validCommands = ['head', 'body', 'beep'];
+
+    const parsed = tokens.map(t => {
+      const num = parseInt(t);
+      if (!isNaN(num) && num >= 1 && num <= 10) {
+        return num;
+      }
+      if (validCommands.includes(t)) {
+        return t;
+      }
+      return null;
+    }).filter(t => t !== null) as (number | string)[];
+
+    if (parsed.length > 0) {
       setPatternSets(sets => sets.map(s => {
         if (s.id === setId) {
           const patternExists = s.patterns.some(
-            p => JSON.stringify(p) === JSON.stringify(nums)
+            p => JSON.stringify(p) === JSON.stringify(parsed)
           );
           if (!patternExists) {
-            return { ...s, patterns: [...s.patterns, nums] };
+            return { ...s, patterns: [...s.patterns, parsed] };
           }
         }
         return s;

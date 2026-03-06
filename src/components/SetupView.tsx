@@ -168,24 +168,24 @@ export default function SetupView({
                     {/* Callout Delay */}
                     <div className="mb-8">
                         <label className="block text-sm uppercase tracking-widest text-rope-gray mb-3" style={{ fontFamily: 'var(--font-oswald)' }}>
-                            Callout Delay: <span className="text-blood">{config.baseDelay}s</span> to <span className="text-blood">{config.baseDelay + config.delayVariance}s</span>
+                            Callout Delay: <span className="text-blood">{config.baseDelay.toFixed(1)}s</span> to <span className="text-blood">{(config.baseDelay + config.delayVariance).toFixed(1)}s</span>
                         </label>
                         <input
                             type="range"
-                            min="1"
+                            min="0.3"
                             max="8"
-                            step="1"
+                            step="0.1"
                             value={config.baseDelay}
-                            onChange={(e) => onUpdateConfig("baseDelay", parseInt(e.target.value))}
+                            onChange={(e) => onUpdateConfig("baseDelay", parseFloat(e.target.value))}
                             className="mb-4"
                         />
                         <input
                             type="range"
                             min="0"
                             max="10"
-                            step="1"
+                            step="0.1"
                             value={config.delayVariance}
-                            onChange={(e) => onUpdateConfig("delayVariance", parseInt(e.target.value))}
+                            onChange={(e) => onUpdateConfig("delayVariance", parseFloat(e.target.value))}
                         />
                     </div>
 

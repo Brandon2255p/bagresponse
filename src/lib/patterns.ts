@@ -1,5 +1,5 @@
-// A pattern is a sequence of numbers (e.g., [1, 1, 2] or [1, 2])
-export type Pattern = number[];
+// A pattern is a sequence of numbers or special commands (e.g., [1, 2] or ["head", "body"])
+export type Pattern = (number | string)[];
 
 // A pattern set has a name and collection of patterns
 export interface PatternSet {
@@ -29,6 +29,12 @@ export const DEFAULT_PATTERN_SETS: PatternSet[] = [
         isDefault: true,
     },
     {
+        id: "beep-1",
+        name: "Beep",
+        patterns: [["beep"]],
+        isDefault: true,
+    },
+    {
         id: "advanced",
         name: "Advanced",
         patterns: [[1, 1, 2], [1, 2, 1, 2], [1, 2, 3, 4], [3, 4]],
@@ -37,7 +43,13 @@ export const DEFAULT_PATTERN_SETS: PatternSet[] = [
 ];
 
 export function formatPattern(pattern: Pattern): string {
-    return pattern.join(" ");
+    return pattern.map(p => {
+        if (typeof p === 'string') {
+            // Capitalize first letter for display
+            return p.charAt(0).toUpperCase() + p.slice(1);
+        }
+        return p.toString();
+    }).join(" ");
 }
 
 // Generate a random pattern of specified length

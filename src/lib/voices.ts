@@ -16,7 +16,24 @@ export const VOICE_EXTENSIONS: Record<VoiceOption, string> = {
     woman_2: "mp3",
 };
 
-export function getVoicePath(voice: VoiceOption, num: number): string {
+export function getVoicePath(voice: VoiceOption, value: number | string): string {
     const extension = VOICE_EXTENSIONS[voice];
-    return `/sounds/${voice}/${num}.${extension}`;
+
+    // Handle string commands (head, body, beep)
+    if (typeof value === 'string') {
+        // Map string commands to numeric values for audio files
+        // head = 11, body = 12, beep = 13
+        const commandMap: Record<string, number> = {
+            'head': 11,
+            'body': 12,
+            'beep': 13,
+        };
+        const num = commandMap[value.toLowerCase()];
+        if (num) {
+            return `/sounds/${voice}/${num}.${extension}`;
+        }
+        return '';
+    }
+
+    return `/sounds/${voice}/${value}.${extension}`;
 }

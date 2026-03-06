@@ -1,6 +1,6 @@
 "use client";
 
-import { type PatternSet, formatPattern, generateRandomPatternSet, generateCustomRandomSet } from "@/lib";
+import { type Pattern, type PatternSet, formatPattern, generateRandomPatternSet, generateCustomRandomSet } from "@/lib";
 import ImportModal from "./ImportModal";
 import ShareModal from "./ShareModal";
 
@@ -19,7 +19,7 @@ interface PatternSetsViewProps {
     onSetNewSetName: (name: string) => void;
     onAddPatternToSet: (setId: string) => void;
     onSetNewPatternInput: (value: string) => void;
-    onRemovePatternFromSet: (setId: string, pattern: number[]) => void;
+    onRemovePatternFromSet: (setId: string, pattern: Pattern) => void;
     onSelectPatternSet: (setId: string) => void;
     onSharePatternSet: (set: PatternSet) => void;
     onDeleteSet: (setId: string) => void;
@@ -29,6 +29,64 @@ interface PatternSetsViewProps {
     onCopyShareUrl: () => void;
     onCloseShareModal: () => void;
     onAddRandomSet: (set: PatternSet) => void;
+}
+
+// Button input component for building patterns
+function PatternInputButtons({
+    value,
+    onAddNumber,
+    onClear,
+    onSubmit
+}: {
+    value: string;
+    onAddNumber: (num: number | string) => void;
+    onClear: () => void;
+    onSubmit: () => void;
+}) {
+    return (
+        <div className="space-y-3">
+            {/* Current pattern preview */}
+            <div className="bg-void border border-rope-gray/50 rounded px-3 py-2 min-h-[48px] flex items-center">
+                <span style={{ fontFamily: 'var(--font-bebas)', fontSize: '1.5rem' }}>
+                    {value || "Click numbers below to build pattern"}
+                </span>
+            </div>
+
+            {/* Number buttons */}
+            <div className="grid grid-cols-5 gap-2">
+                {[1, 2, 3, 4, 5, 6, 7, 8, "Head", "Body", "BEEP"].map((num) => (
+                    <button
+                        key={num}
+                        onClick={() => onAddNumber(num)}
+                        className="px-3 py-2 bg-concrete text-canvas rounded hover:bg-rope-gray transition-colors text-lg"
+                        style={{ fontFamily: 'var(--font-bebas)' }}
+                    >
+                        {num}
+                    </button>
+                ))}
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-2">
+                <button
+                    onClick={onClear}
+                    disabled={!value}
+                    className="flex-1 px-4 py-2 border border-rope-gray text-rope-gray rounded hover:border-blood hover:text-blood transition-colors disabled:opacity-50"
+                    style={{ fontFamily: 'var(--font-oswald)' }}
+                >
+                    CLEAR
+                </button>
+                <button
+                    onClick={onSubmit}
+                    disabled={!value.trim()}
+                    className="flex-1 px-4 py-2 bg-blood text-canvas rounded hover:bg-glove-red transition-colors disabled:opacity-50"
+                    style={{ fontFamily: 'var(--font-bebas)', fontSize: '1.25rem' }}
+                >
+                    ADD PATTERN
+                </button>
+            </div>
+        </div>
+    );
 }
 
 export default function PatternSetsView({
@@ -57,6 +115,23 @@ export default function PatternSetsView({
     onCloseShareModal,
     onAddRandomSet,
 }: PatternSetsViewProps) {
+
+    const handleAddNumber = (num: number | string) => {
+        const current = newPatternInput ? newPatternInput.trim() : "";
+        const newValue = current ? `${current} ${num}` : `${num}`;
+        onSetNewPatternInput(newValue);
+    };
+
+    const handleClear = () => {
+        onSetNewPatternInput("");
+    };
+
+    const handleSubmit = () => {
+        if (editingSet && newPatternInput.trim()) {
+            onAddPatternToSet(editingSet.id);
+        }
+    };
+
     return (
         <main className="min-h-screen bg-void text-canvas p-6 pt-20 md:p-12">
             <div className="max-w-4xl mx-auto">
@@ -204,24 +279,12 @@ export default function PatternSetsView({
                             </div>
 
                             {editingSet?.id === set.id && (
-                                <div className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        value={newPatternInput}
-                                        onChange={(e) => onSetNewPatternInput(e.target.value)}
-                                        onKeyDown={(e) => e.key === "Enter" && onAddPatternToSet(set.id)}
-                                        placeholder="e.g., 1 1 2"
-                                        className="flex-1 bg-void border border-rope-gray/50 rounded px-3 py-2 text-canvas"
-                                        style={{ fontFamily: 'var(--font-bebas)', fontSize: '1.25rem' }}
-                                    />
-                                    <button
-                                        onClick={() => onAddPatternToSet(set.id)}
-                                        className="px-4 py-2 bg-blood text-canvas rounded hover:bg-glove-red transition-colors"
-                                        style={{ fontFamily: 'var(--font-bebas)', fontSize: '1.25rem' }}
-                                    >
-                                        ADD
-                                    </button>
-                                </div>
+                                <PatternInputButtons
+                                    value={newPatternInput}
+                                    onAddNumber={handleAddNumber}
+                                    onClear={handleClear}
+                                    onSubmit={handleSubmit}
+                                />
                             )}
                         </div>
                     ))}
