@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useRef, useEffect } from "react";
 import { type Pattern, type TrainingConfig, type Phase, formatPattern } from "@/lib";
 
 interface TrainingViewProps {
@@ -32,6 +33,53 @@ export default function TrainingView({
         const secs = seconds % 60;
         return `${mins}:${secs.toString().padStart(2, "0")}`;
     };
+
+    const [isLocked, setIsLocked] = useState(false);
+    const [unlockProgress, setUnlockProgress] = useState(0);
+    const unlockTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    const handleLockPress = () => {
+        if (!isLocked) {
+            // Start locking - just toggle immediately
+            setIsLocked(true);
+        }
+    };
+
+    const handleUnlockPress = () => {
+        if (isLocked) {
+            // Start unlock countdown
+            setUnlockProgress(0);
+            unlockTimerRef.current = setInterval(() => {
+                setUnlockProgress(prev => {
+                    if (prev >= 100) {
+                        if (unlockTimerRef.current) {
+                            clearInterval(unlockTimerRef.current);
+                        }
+                        setIsLocked(false);
+                        setUnlockProgress(0);
+                        return 100;
+                    }
+                    return prev + (100 / 50); // 100% / 5 seconds = 20% per second (50ms intervals)
+                });
+            }, 100);
+        }
+    };
+
+    const handleUnlockRelease = () => {
+        if (unlockTimerRef.current) {
+            clearInterval(unlockTimerRef.current);
+        }
+        setUnlockProgress(0);
+    };
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (unlockTimerRef.current) {
+                clearInterval(unlockTimerRef.current);
+            }
+        };
+    }, []);
 
     return (
         <main className={`h-screen overflow-hidden ${phase === "rest" ? "rest-period" : "bg-void"} text-canvas flex flex-col items-center justify-center p-4 relative ${flashActive ? "callout-flash" : ""}`}>
@@ -78,7 +126,7 @@ export default function TrainingView({
             )}
 
             {/* Playback Speed Control */}
-            <div className="mb-4 w-full max-w-xs z-10 relative">
+            <div className={`mb-4 w-full max-w-xs z-10 relative ${isLocked ? 'opacity-30 pointer-events-none' : ''}`}>
                 <label className="block text-xs uppercase tracking-widest text-rope-gray mb-1 text-center" style={{ fontFamily: 'var(--font-oswald)' }}>
                     Playback Speed: <span className="text-blood">{config.playbackSpeed.toFixed(1)}x</span>
                 </label>
@@ -90,11 +138,12 @@ export default function TrainingView({
                     value={config.playbackSpeed}
                     onChange={(e) => onUpdateConfig("playbackSpeed", parseFloat(e.target.value))}
                     className="w-full"
+                    disabled={isLocked}
                 />
             </div>
 
             {/* Callout Delay Control */}
-            <div className="mb-4 w-full max-w-xs z-10 relative">
+            <div className={`mb-4 w-full max-w-xs z-10 relative ${isLocked ? 'opacity-30 pointer-events-none' : ''}`}>
                 <label className="block text-xs uppercase tracking-widest text-rope-gray mb-1 text-center" style={{ fontFamily: 'var(--font-oswald)' }}>
                     Delay: <span className="text-blood">{config.baseDelay.toFixed(1)}s</span> to <span className="text-blood">{(config.baseDelay + config.delayVariance).toFixed(1)}s</span>
                 </label>
@@ -106,6 +155,7 @@ export default function TrainingView({
                     value={config.baseDelay}
                     onChange={(e) => onUpdateConfig("baseDelay", parseFloat(e.target.value))}
                     className="w-full mb-2"
+                    disabled={isLocked}
                 />
                 <input
                     type="range"
@@ -115,6 +165,7 @@ export default function TrainingView({
                     value={config.delayVariance}
                     onChange={(e) => onUpdateConfig("delayVariance", parseFloat(e.target.value))}
                     className="w-full"
+                    disabled={isLocked}
                 />
             </div>
 
@@ -122,17 +173,34 @@ export default function TrainingView({
             <div className="flex gap-4 z-10 relative">
                 <button
                     onClick={onTogglePause}
-                    className="px-8 py-3 bg-concrete text-canvas text-lg uppercase tracking-widest rounded hover:bg-rope-gray transition-colors"
+                    disabled={isLocked}
+                    className={`px-8 py-3 text-lg uppercase tracking-widest rounded transition-colors ${isLocked ? 'opacity-30 cursor-not-allowed' : 'bg-concrete text-canvas hover:bg-rope-gray'}`}
                     style={{ fontFamily: 'var(--font-oswald)' }}
                 >
                     {isPaused ? "RESUME" : "PAUSE"}
                 </button>
                 <button
                     onClick={onResetTraining}
-                    className="px-8 py-3 border border-blood text-blood text-lg uppercase tracking-widest rounded hover:bg-blood hover:text-canvas transition-colors"
+                    disabled={isLocked}
+                    className={`px-8 py-3 text-lg uppercase tracking-widest rounded transition-colors ${isLocked ? 'opacity-30 cursor-not-allowed' : 'border border-blood text-blood hover:bg-blood hover:text-canvas'}`}
                     style={{ fontFamily: 'var(--font-oswald)' }}
                 >
                     STOP
+                </button>
+                {/* Lock Button */}
+                <button
+                    onMouseDown={handleLockPress}
+                    onMouseUp={handleUnlockRelease}
+                    onMouseLeave={handleUnlockRelease}
+                    onTouchStart={handleLockPress}
+                    onTouchEnd={handleUnlockRelease}
+                    className={`px-8 py-3 text-lg uppercase tracking-widest rounded transition-colors ${isLocked
+                            ? 'bg-ring-gold text-void'
+                            : 'border border-ring-gold text-ring-gold hover:bg-ring-gold hover:text-void'
+                        }`}
+                    style={{ fontFamily: 'var(--font-oswald)' }}
+                >
+                    {isLocked ? `UNLOCK ${Math.ceil((100 - unlockProgress) / 20)}s` : 'LOCK'}
                 </button>
             </div>
         </main>
